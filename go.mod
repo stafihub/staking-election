@@ -4,11 +4,12 @@ go 1.18
 
 require (
 	github.com/BurntSushi/toml v1.1.0
+	github.com/cosmos/cosmos-sdk v0.45.4
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/viper v1.12.0
-	github.com/stafihub/cosmos-relay-sdk v1.1.0
+	github.com/stafihub/cosmos-relay-sdk v1.2.0
 )
 
 require (
@@ -24,7 +25,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/confio/ics23/go v0.7.0 // indirect
 	github.com/cosmos/btcutil v1.0.4 // indirect
-	github.com/cosmos/cosmos-sdk v0.45.4 // indirect
 	github.com/cosmos/go-bip39 v1.0.0 // indirect
 	github.com/cosmos/iavl v0.17.3 // indirect
 	github.com/cosmos/ibc-go/v3 v3.0.0 // indirect
