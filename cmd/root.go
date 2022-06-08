@@ -4,14 +4,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
-	configPath        string
-	debug             bool
-	defaultConfigPath = os.ExpandEnv("./")
-	appName           = "staking-election"
+	appName = "staking-election"
 )
 
 // NewRootCmd returns the root command.
@@ -27,15 +23,10 @@ func NewRootCmd() *cobra.Command {
 		return nil
 	}
 
-	// --debug flag
-	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "debug output")
-	if err := viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug")); err != nil {
-		panic(err)
-	}
-
 	rootCmd.AddCommand(
-		versionCmd(),
+		startCmd(),
 		validatorsCmd(),
+		versionCmd(),
 	)
 	return rootCmd
 }

@@ -3,9 +3,13 @@
 ## how to use
 
 ```
-make build
+make install
 ```
 
 ```
-./build/staking-election validators --node https://cosmos-rpc1.stafi.io:443
+staking-election version
+
+staking-election validators --node https://cosmos-rpc1.stafi.io:443
+
+staking-election start
 ```

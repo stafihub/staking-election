@@ -13,12 +13,16 @@ import (
 
 type Config struct {
 	TaskTicker       int64 //seconds task interval
-	LogFilePath      string
 	KeystorePath     string
-	PayerAccount     string
+	ElectorAccount   string
 	StafiHubEndpoint string
+	RTokenInfo       []RTokenInfo
 	ListenAddr       string
-	Mode             string //release debug test
+}
+
+type RTokenInfo struct {
+	Denom    string
+	Endpoint string
 }
 
 func Load(defaultCfgFile string) (*Config, error) {
@@ -28,16 +32,6 @@ func Load(defaultCfgFile string) (*Config, error) {
 	var cfg = Config{}
 	if err := loadSysConfig(*configFilePath, &cfg); err != nil {
 		return nil, err
-	}
-	if cfg.LogFilePath == "" {
-		cfg.LogFilePath = "./log_data"
-	}
-
-	switch cfg.Mode {
-	case "release":
-	case "debug":
-	default:
-		cfg.Mode = "release"
 	}
 
 	return &cfg, nil

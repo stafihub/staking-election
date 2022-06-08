@@ -23,6 +23,10 @@ const (
 var defaultFormatterForFile = &logrus.TextFormatter{DisableColors: true, FullTimestamp: true}
 var defaultFormatterForConsole = &logrus.TextFormatter{DisableColors: false, FullTimestamp: true}
 
+func InitConsole() {
+	logrus.SetFormatter(defaultFormatterForConsole)
+}
+
 func InitLogFile(logPath string) error {
 	if err := clearLockFiles(logPath); err != nil {
 		return err
@@ -31,7 +35,7 @@ func InitLogFile(logPath string) error {
 	hook := newBtmHook(logPath)
 	logrus.AddHook(hook)
 	//logrus.SetOutput(ioutil.Discard) //控制台不输出
-	logrus.SetFormatter(defaultFormatterForConsole)
+	InitConsole()
 	fmt.Printf("all logs are output in the %s directory\n", logPath)
 	return nil
 }

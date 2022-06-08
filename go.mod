@@ -8,7 +8,6 @@ require (
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
-	github.com/spf13/viper v1.12.0
 	github.com/stafihub/cosmos-relay-sdk v1.2.0
 )
 
@@ -86,6 +85,7 @@ require (
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/viper v1.12.0 // indirect
 	github.com/stafihub/rtoken-relay-core/common v0.0.0-20220514065914-3bb5cec735ea // indirect
 	github.com/stafihub/stafihub v0.0.0-20220505173950-6d307f410e31 // indirect
 	github.com/stafiprotocol/go-substrate-rpc-client v1.1.3 // indirect
