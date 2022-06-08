@@ -39,7 +39,7 @@ func versionCmd() *cobra.Command {
 			return nil
 		},
 	}
-
+	
 	return cmd
 }
 
