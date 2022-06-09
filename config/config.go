@@ -4,7 +4,6 @@
 package config
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -12,25 +11,23 @@ import (
 )
 
 type Config struct {
-	TaskTicker       int64 //seconds task interval
-	KeystorePath     string
-	ElectorAccount   string
-	StafiHubEndpoint string
-	RTokenInfo       []RTokenInfo
-	ListenAddr       string
+	KeystorePath         string
+	ElectorAccount       string
+	StafiHubEndpointList []string
+	GasPrice             string
+	ListenAddr           string
+	EnableApi            bool
+	RTokenInfo           []RTokenInfo
 }
 
 type RTokenInfo struct {
-	Denom    string
-	Endpoint string
+	Denom        string
+	EndpointList []string
 }
 
-func Load(defaultCfgFile string) (*Config, error) {
-	configFilePath := flag.String("C", defaultCfgFile, "Config file path")
-	flag.Parse()
-
+func Load(configFilePath string) (*Config, error) {
 	var cfg = Config{}
-	if err := loadSysConfig(*configFilePath, &cfg); err != nil {
+	if err := loadSysConfig(configFilePath, &cfg); err != nil {
 		return nil, err
 	}
 
@@ -45,6 +42,6 @@ func loadSysConfig(path string, config *Config) error {
 	if _, err := toml.DecodeFile(path, config); err != nil {
 		return err
 	}
-	fmt.Println("load sysConfig success")
+	fmt.Println("load config success")
 	return nil
 }

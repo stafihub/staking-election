@@ -1,0 +1,10 @@
+electorAccount = "test2"
+enableApi = true
+gasPrice = "0.05ufis"
+keystorePath = "/Users/tpkeeper/.stafihub"
+listenAddr = ":8083"
+stafiHubEndpointList = ["https://test-rpc1.stafihub.io:443"]
+
+[[rTokenInfo]]
+denom = "uratom"
+endpointList = ["https://test-iris-rpc1.stafihub.io:443"]

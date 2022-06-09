@@ -17,7 +17,7 @@ func validatorsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "validators",
 		Aliases: []string{"v"},
-		Short:   "show validators",
+		Short:   "Select high quality validators for you",
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			node, err := cmd.Flags().GetString(flagNode)
@@ -61,7 +61,7 @@ func validatorsCmd() *cobra.Command {
 
 			fmt.Println("total validators: ", initialLen)
 			fmt.Println("average annual ratio: ", totalAnuualRatio.Quo(sdk.NewDec(int64(initialLen))))
-			fmt.Println("selected validators: ")
+			fmt.Println("\nselected validators: ")
 			for _, val := range valSlice {
 				fmt.Printf("%+v\n", val)
 			}

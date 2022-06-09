@@ -17,7 +17,7 @@ func versionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "version",
 		Aliases: []string{"v"},
-		Short:   "show version information for staking-election",
+		Short:   "Show version information",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bi, _ := dbg.ReadBuildInfo()
 
@@ -39,7 +39,7 @@ func versionCmd() *cobra.Command {
 			return nil
 		},
 	}
-	
+
 	return cmd
 }
 
