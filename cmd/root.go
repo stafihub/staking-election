@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"os"
 
+	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +29,7 @@ func NewRootCmd() *cobra.Command {
 		startCmd(),
 		validatorsCmd(),
 		versionCmd(),
+		keyCmd(),
 	)
 	return rootCmd
 }
@@ -38,7 +41,11 @@ func Execute() {
 	rootCmd.SilenceUsage = true
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
-	if err := rootCmd.Execute(); err != nil {
+	// keys cmd need set clientContext pointer
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, client.ClientContextKey, &client.Context{})
+
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)
 	}
 }
