@@ -8,13 +8,16 @@ import (
 	"github.com/sirupsen/logrus"
 	cosmosClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
+	stafihubClient "github.com/stafihub/stafi-hub-relay-sdk/client"
 	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 	"github.com/stafihub/staking-election/utils"
 )
 
-func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, denom string, cycleSeconds *stafiHubXRValidatorTypes.CycleSeconds, validatorNumber int64) {
-	logrus.Infof("CycleCheckValidatorHandler start, denom: %s, cycleVersion: %d, cycleSeconds: %d, validatorNumber: %d",
-		denom, cycleSeconds.Version, cycleSeconds.Seconds, validatorNumber)
+var maxSlashAmount = int64(0)
+
+func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, denom string, cycleSeconds *stafiHubXRValidatorTypes.CycleSeconds) {
+	logrus.Infof("CycleCheckValidatorHandler start, denom: %s, cycleVersion: %d, cycleSeconds: %d",
+		denom, cycleSeconds.Version, cycleSeconds.Seconds)
 
 	ticker := time.NewTicker(time.Duration(cycleSeconds.Seconds) * time.Second)
 	defer ticker.Stop()
@@ -32,8 +35,9 @@ func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, 
 			return
 		case <-ticker.C:
 			logrus.Info("task CycleCheckValidatorHandler start -----------")
-			err := task.CheckValidator(cosmosClient, denom, cycleSeconds, validatorNumber)
+			err := task.CheckValidator(cosmosClient, denom, cycleSeconds)
 			if err != nil {
+				logrus.Warnf("CheckValidator failed: %s", err)
 				time.Sleep(WaitTime)
 				retry++
 				continue
@@ -45,12 +49,16 @@ func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, 
 	}
 }
 
-func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom string, cycleSeconds *stafiHubXRValidatorTypes.CycleSeconds, validatorNumber int64) error {
+func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom string, cycleSeconds *stafiHubXRValidatorTypes.CycleSeconds) error {
 
 	rValidatorList, err := task.stafihubClient.QueryRValidatorList(denom)
 	if err != nil {
 		return err
 	}
+	if len(rValidatorList.RValidatorList) == 0 {
+		return fmt.Errorf("rValidatorList on chain is empty")
+	}
+
 	rValidatorMap := make(map[string]bool)
 	for _, rval := range rValidatorList.RValidatorList {
 		rValidatorMap[rval] = true
@@ -62,7 +70,6 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom string
 	}
 	useSeconds := int64(cycleSeconds.Seconds)
 	cycle := currentBlockHeight / useSeconds
-
 	targetHeight := cycle * useSeconds
 
 	needRmValidator := make([]string, 0)
@@ -84,15 +91,17 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom string
 			cycle, validatorStr, slashRes.Pagination.Total, fromHeight, targetHeight)
 
 		// redelegate if has slash
-		if slashRes.Pagination.Total > 2 {
+		if slashRes.Pagination.Total >= uint64(maxSlashAmount) {
 			needRmValidator = append(needRmValidator, validatorStr)
-
 		}
 	}
 	if len(needRmValidator) == 0 {
+		logrus.Debugf("needRmValidator is empty, no need redelegate")
 		return nil
 	}
-	selectedValidator, err := utils.GetSelectedValidator(cosmosClient, targetHeight, validatorNumber*2)
+
+	// select highquality validators, number = 2 * len(rValidatorList)
+	selectedValidator, err := utils.GetSelectedValidator(cosmosClient, targetHeight, int64(len(rValidatorList.RValidatorList)*2))
 	if err != nil {
 		return err
 	}
@@ -111,7 +120,20 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom string
 		return fmt.Errorf("selected validator not enough to redelegate")
 	}
 
-	content := stafiHubXRValidatorTypes.NewUpdateRValidatorProposal(task.stafihubClient.GetFromName(), denom, needRmValidator[0], willUseValidator[0])
+	logrus.WithFields(logrus.Fields{
+		"oldVal": needRmValidator[0],
+		"newVal": willUseValidator[0],
+	}).Info("will relegate info")
+
+	done := core.UseSdkConfigContext(stafihubClient.GetAccountPrefix())
+	fromAddress := task.stafihubClient.GetFromAddress().String()
+	done()
+
+	content := stafiHubXRValidatorTypes.NewUpdateRValidatorProposal(fromAddress, denom, needRmValidator[0], willUseValidator[0], &stafiHubXRValidatorTypes.Cycle{
+		Denom:   denom,
+		Version: cycleSeconds.Version,
+		Number:  uint64(cycle),
+	})
 
 	return task.checkAndReSendWithProposalContent("NewUpdateRValidatorProposal", content)
 }

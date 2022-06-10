@@ -21,10 +21,9 @@ type Config struct {
 }
 
 type RTokenInfo struct {
-	Denom           string
-	AccountPrefix   string
-	ValidatorNumber int64
-	EndpointList    []string
+	Denom         string
+	AccountPrefix string
+	EndpointList  []string
 }
 
 func Load(configFilePath string) (*Config, error) {

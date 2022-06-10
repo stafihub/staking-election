@@ -50,7 +50,7 @@ func (task *Task) Start() error {
 		}
 
 		utils.SafeGoWithRestart(func() {
-			task.CycleCheckValidatorHandler(cosmosClient, rTokenInfo.Denom, cycleSecondsRes.CycleSeconds, rTokenInfo.ValidatorNumber)
+			task.CycleCheckValidatorHandler(cosmosClient, rTokenInfo.Denom, cycleSecondsRes.CycleSeconds)
 		})
 	}
 
@@ -62,6 +62,10 @@ func (task *Task) Stop() {
 }
 
 func (h *Task) checkAndReSendWithProposalContent(typeStr string, content stafiHubXRVoteTypes.Content) error {
+	logrus.WithFields(logrus.Fields{
+		"type": typeStr,
+	}).Info("checkAndReSendWithProposalContent start")
+
 	txHashStr, _, err := h.stafihubClient.SubmitProposal(content)
 	if err != nil {
 		switch {
@@ -78,6 +82,10 @@ func (h *Task) checkAndReSendWithProposalContent(typeStr string, content stafiHu
 
 		return err
 	}
+	logrus.WithFields(logrus.Fields{
+		"txhash":  txHashStr,
+		"typeStr": typeStr,
+	}).Debug("checkAndReSendWithProposalContent")
 
 	retry := RetryLimit
 	var res *sdk.TxResponse
@@ -136,6 +144,9 @@ func (h *Task) checkAndReSendWithProposalContent(typeStr string, content stafiHu
 		break
 	}
 
-	logrus.Info("checkAndReSendWithProposalContent success", "txHash", txHashStr, "type", typeStr)
+	logrus.WithFields(logrus.Fields{
+		"txHash": txHashStr,
+		"type":   typeStr,
+	}).Info("checkAndReSendWithProposalContent success")
 	return nil
 }

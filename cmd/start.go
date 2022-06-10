@@ -50,7 +50,7 @@ func startCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("\nconfig info: \nelectorAccount: %s\nenableApi: %v\ngasPrice: %s\nkeystorePath: %s\nlistenAddr: %s\nrTokenInfo: %+v\nstafihubEndpointList: %v\n",
+			fmt.Printf("\nconfig info: \nelectorAccount: %s\nenableApi: %v\ngasPrice: %s\nkeystorePath: %s\nlistenAddr: %s\nrTokenInfo: %+v\nstafihubEndpointList: %v\n\n",
 				conf.ElectorAccount, conf.EnableApi, conf.GasPrice, conf.KeystorePath, conf.ListenAddr, conf.RTokenInfo, conf.StafiHubEndpointList)
 
 			//interrupt signal

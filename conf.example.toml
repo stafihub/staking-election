@@ -1,7 +1,7 @@
-electorAccount = "test2"
+electorAccount = "relay1"
 enableApi = true
 gasPrice = "0.05ufis"
-keystorePath = "/Users/tpkeeper/.stafihub"
+keystorePath = "./keys/stafihub"
 listenAddr = ":8083"
 stafiHubEndpointList = ["http://localhost:26657"]
 
@@ -9,4 +9,3 @@ stafiHubEndpointList = ["http://localhost:26657"]
 accountPrefix = "cosmos"
 denom = "uratom"
 endpointList = ["https://cosmos-rpc1.stafi.io:443"]
-validatorNumber = 5
