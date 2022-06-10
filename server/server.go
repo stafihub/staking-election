@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	cosmosClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/staking-election/api"
 	"github.com/stafihub/staking-election/config"
 	"github.com/stafihub/staking-election/utils"
@@ -13,18 +14,23 @@ import (
 type Server struct {
 	listenAddr string
 	httpServer *http.Server
+	stop       chan struct{}
 	cfg        *config.Config
+	cache      *utils.WrapMap
+	clientMap  map[string]*cosmosClient.Client
 }
 
 func NewServer(cfg *config.Config) (*Server, error) {
 	s := &Server{
 		listenAddr: cfg.ListenAddr,
 		cfg:        cfg,
+		stop:       make(chan struct{}),
+		cache: &utils.WrapMap{
+			Cache: make(map[string]string),
+		},
 	}
 
-	cache := map[string]string{}
-
-	handler := s.InitHandler(cache)
+	handler := s.InitHandler(s.cache)
 
 	s.httpServer = &http.Server{
 		Addr:         s.listenAddr,
@@ -36,7 +42,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	return s, nil
 }
 
-func (svr *Server) InitHandler(cache map[string]string) http.Handler {
+func (svr *Server) InitHandler(cache *utils.WrapMap) http.Handler {
 	return api.InitRouters(cache)
 }
 
@@ -52,7 +58,31 @@ func (svr *Server) ApiServer() {
 }
 
 func (svr *Server) Start() error {
+	svr.clientMap = make(map[string]*cosmosClient.Client)
+	for _, rtokenInfo := range svr.cfg.RTokenInfo {
+		client, err := cosmosClient.NewClient(nil, "", "", rtokenInfo.AccountPrefix, rtokenInfo.EndpointList)
+		if err != nil {
+			return err
+		}
+		svr.clientMap[rtokenInfo.Denom] = client
+	}
+	for denom, client := range svr.clientMap {
+		height, err := client.GetCurrentBlockHeight()
+		if err != nil {
+			return err
+		}
+		ratio, err := utils.GetAverageAnnualRatio(client, height)
+		if err != nil {
+			return err
+		}
+
+		svr.cache.CacheMutex.Lock()
+		svr.cache.Cache[denom] = ratio.String()
+		svr.cache.CacheMutex.Unlock()
+	}
+
 	utils.SafeGoWithRestart(svr.ApiServer)
+	utils.SafeGoWithRestart(svr.AverageAnnualRatioHandler)
 	return nil
 }
 
@@ -61,6 +91,36 @@ func (svr *Server) Stop() {
 		err := svr.httpServer.Close()
 		if err != nil {
 			logrus.Errorf("Problem shutdown Gin server :%s", err.Error())
+		}
+	}
+	close(svr.stop)
+}
+
+func (s *Server) AverageAnnualRatioHandler() {
+	ticker := time.NewTicker(time.Duration(60) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-ticker.C:
+			logrus.Debugf("AverageAnnualRatioHandler start -----------")
+			for denom, client := range s.clientMap {
+				height, err := client.GetCurrentBlockHeight()
+				if err != nil {
+					continue
+				}
+				ratio, err := utils.GetAverageAnnualRatio(client, height)
+				if err != nil {
+					continue
+				}
+
+				s.cache.CacheMutex.Lock()
+				s.cache.Cache[denom] = ratio.String()
+				s.cache.CacheMutex.Unlock()
+			}
+			logrus.Debugf("AverageAnnualRatioHandler end -----------")
 		}
 	}
 }

@@ -2,16 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"sort"
-
-	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/spf13/cobra"
 	client "github.com/stafihub/cosmos-relay-sdk/client"
+	"github.com/stafihub/staking-election/utils"
 )
 
 const flagNode = "node"
-
-var averageBlockTIme = sdk.MustNewDecFromStr("6.77")
+const flagNumber = "number"
 
 func validatorsCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -21,6 +18,10 @@ func validatorsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			node, err := cmd.Flags().GetString(flagNode)
+			if err != nil {
+				return err
+			}
+			number, err := cmd.Flags().GetInt64(flagNumber)
 			if err != nil {
 				return err
 			}
@@ -35,32 +36,21 @@ func validatorsCmd() *cobra.Command {
 				return err
 			}
 
-			valMap, err := GetValidatorAnnualRatio(c, curBLockHeight)
+			allValidator, err := utils.GetValidatorAnnualRatio(c, curBLockHeight)
 			if err != nil {
 				return err
 			}
 
-			valSlice := make([]*Validator, 0)
-			totalAnuualRatio := sdk.NewDec(0)
-			for _, val := range valMap {
-				valSlice = append(valSlice, val)
-				totalAnuualRatio = totalAnuualRatio.Add(val.AnnualRatio)
+			averageAnnualRatio, err := utils.GetAverageAnnualRatio(c, curBLockHeight)
+			if err != nil {
+				return err
 			}
-
-			sort.Slice(valSlice, func(i, j int) bool {
-				return valSlice[i].TokenAmount.GT(valSlice[j].TokenAmount)
-			})
-
-			initialLen := len(valSlice)
-			valSlice = valSlice[initialLen/10 : initialLen-initialLen/10]
-
-			sort.Slice(valSlice, func(i, j int) bool {
-				return valSlice[i].AnnualRatio.GT(valSlice[j].AnnualRatio)
-			})
-			valSlice = valSlice[:5]
-
-			fmt.Println("total validators: ", initialLen)
-			fmt.Println("average annual ratio: ", totalAnuualRatio.Quo(sdk.NewDec(int64(initialLen))))
+			valSlice, err := utils.GetSelectedValidator(c, curBLockHeight, number)
+			if err != nil {
+				return err
+			}
+			fmt.Println("total validators: ", len(allValidator))
+			fmt.Println("average annual ratio: ", averageAnnualRatio.String())
 			fmt.Println("\nselected validators: ")
 			for _, val := range valSlice {
 				fmt.Printf("%+v\n", val)
@@ -71,72 +61,7 @@ func validatorsCmd() *cobra.Command {
 	}
 
 	cmd.Flags().String(flagNode, "", "node rpc endpoint")
+	cmd.Flags().Int64(flagNumber, 5, "validators number limit")
 
 	return cmd
-}
-
-func GetValidatorAnnualRatio(c *client.Client, height int64) (map[string]*Validator, error) {
-	blockResults, err := c.GetBlockResults(height)
-	if err != nil {
-		return nil, err
-	}
-
-	rewardMap := make(map[string]sdk.Dec, 0)
-	for _, event := range sdk.StringifyEvents(blockResults.BeginBlockEvents) {
-		if event.Type == "rewards" {
-			if len(event.Attributes)%2 != 0 {
-				return nil, fmt.Errorf("atribute len err, event: %s", event)
-			}
-
-			for i := 0; i < len(event.Attributes); i += 2 {
-				rewardToken, err := sdk.ParseDecCoin(event.Attributes[i].Value)
-				if err != nil {
-					return nil, err
-				}
-				rewardMap[event.Attributes[i+1].Value] = rewardToken.Amount
-			}
-		}
-	}
-
-	res, err := c.QueryValidators(height)
-	if err != nil {
-		return nil, err
-	}
-
-	vals := make(map[string]*Validator, 0)
-	for _, val := range res.Validators {
-		willUseVal := Validator{
-			Height:          height,
-			OperatorAddress: val.OperatorAddress,
-			TokenAmount:     val.Tokens,
-			ShareAmount:     val.DelegatorShares,
-			Commission:      val.GetCommission(),
-		}
-
-		if rewardTokenAmount, exist := rewardMap[val.OperatorAddress]; exist {
-
-			commission := rewardTokenAmount.Mul(val.GetCommission())
-			sharedToken := rewardTokenAmount.Sub(commission)
-
-			rewardPerShare := sharedToken.Quo(willUseVal.ShareAmount)
-			annualRatio := rewardPerShare.Mul(sdk.NewDec(365 * 24 * 60 * 60)).Quo(averageBlockTIme)
-
-			willUseVal.RewardAmount = rewardTokenAmount
-			willUseVal.AnnualRatio = annualRatio
-
-			vals[willUseVal.OperatorAddress] = &willUseVal
-		}
-	}
-
-	return vals, nil
-}
-
-type Validator struct {
-	Height          int64
-	OperatorAddress string
-	TokenAmount     sdk.Int
-	RewardAmount    sdk.Dec
-	ShareAmount     sdk.Dec
-	Commission      sdk.Dec
-	AnnualRatio     sdk.Dec
 }

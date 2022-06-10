@@ -21,8 +21,19 @@ type AnnualRatio struct {
 // @Success 200 {object} utils.Rsp{data=RspAnnualRatioList}
 // @Router /v1/annualRatioList [get]
 func (h *Handler) HandleGetAverageAnnualRatio(c *gin.Context) {
+
 	rsp := RspAnnualRatioList{
-		AnnualRatioList: []AnnualRatio{{"uratom", "0.16"}},
+		AnnualRatioList: make([]AnnualRatio, 0),
 	}
+
+	h.cache.CacheMutex.RLock()
+	for denom, ratio := range h.cache.Cache {
+		rsp.AnnualRatioList = append(rsp.AnnualRatioList, AnnualRatio{
+			RTokenDenom: denom,
+			AnnualRatio: ratio,
+		})
+	}
+	h.cache.CacheMutex.RUnlock()
+
 	utils.Ok(c, "success", rsp)
 }

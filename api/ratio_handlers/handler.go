@@ -3,11 +3,13 @@
 
 package ratio_handlers
 
+import "github.com/stafihub/staking-election/utils"
+
 type Handler struct {
-	cache map[string]string
+	cache *utils.WrapMap
 }
 
-func NewHandler(cache map[string]string) *Handler {
+func NewHandler(cache *utils.WrapMap) *Handler {
 	return &Handler{cache: cache}
 }
 

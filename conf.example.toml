@@ -6,5 +6,7 @@ listenAddr = ":8083"
 stafiHubEndpointList = ["https://test-rpc1.stafihub.io:443"]
 
 [[rTokenInfo]]
+accountPrefix = "cosmos"
 denom = "uratom"
 endpointList = ["https://test-iris-rpc1.stafihub.io:443"]
+validatorNumber = 5

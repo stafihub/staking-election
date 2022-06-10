@@ -8,11 +8,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stafihub/staking-election/api/ratio_handlers"
+	"github.com/stafihub/staking-election/utils"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"github.com/swaggo/gin-swagger/swaggerFiles"
 )
 
-func InitRouters(cache map[string]string) http.Handler {
+func InitRouters(cache *utils.WrapMap) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 	router.MaxMultipartMemory = 8 << 20 // 8 MiB

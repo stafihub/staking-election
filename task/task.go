@@ -1,29 +1,141 @@
 package task
 
 import (
+	"fmt"
+	"strings"
+	"time"
+
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/errors"
+	"github.com/sirupsen/logrus"
+	cosmosClient "github.com/stafihub/cosmos-relay-sdk/client"
 	stafihubClient "github.com/stafihub/stafi-hub-relay-sdk/client"
+	stafiHubXRelayersTypes "github.com/stafihub/stafihub/x/relayers/types"
+	stafiHubXRVoteTypes "github.com/stafihub/stafihub/x/rvote/types"
 	"github.com/stafihub/staking-election/config"
+	"github.com/stafihub/staking-election/utils"
 )
 
+var RetryLimit = 100
+var WaitTime = time.Second * 6
+
 type Task struct {
-	stafihubClient *stafihubClient.Client
-	electorAccount string
-	stop           chan struct{}
+	stafihubClient       *stafihubClient.Client
+	electorAccount       string
+	stafihubEndpointList []string
+	rTokenInfoList       []config.RTokenInfo
+	stop                 chan struct{}
 }
 
 func NewTask(cfg *config.Config, stafihubClient *stafihubClient.Client) *Task {
 	s := &Task{
-		stafihubClient: stafihubClient,
-		electorAccount: cfg.ElectorAccount,
-		stop:           make(chan struct{}),
+		stafihubClient:       stafihubClient,
+		electorAccount:       cfg.ElectorAccount,
+		stafihubEndpointList: cfg.StafiHubEndpointList,
+		rTokenInfoList:       cfg.RTokenInfo,
+		stop:                 make(chan struct{}),
 	}
 	return s
 }
 
 func (task *Task) Start() error {
+	for _, rTokenInfo := range task.rTokenInfoList {
+		cycleSecondsRes, err := task.stafihubClient.QueryCycleSeconds(rTokenInfo.Denom)
+		if err != nil {
+			return err
+		}
+		cosmosClient, err := cosmosClient.NewClient(nil, "", "", rTokenInfo.AccountPrefix, rTokenInfo.EndpointList)
+		if err != nil {
+			return err
+		}
+
+		utils.SafeGoWithRestart(func() {
+			task.CycleCheckValidatorHandler(cosmosClient, rTokenInfo.Denom, cycleSecondsRes.CycleSeconds, rTokenInfo.ValidatorNumber)
+		})
+	}
+
 	return nil
 }
 
 func (task *Task) Stop() {
 	close(task.stop)
+}
+
+func (h *Task) checkAndReSendWithProposalContent(typeStr string, content stafiHubXRVoteTypes.Content) error {
+	txHashStr, _, err := h.stafihubClient.SubmitProposal(content)
+	if err != nil {
+		switch {
+		case strings.Contains(err.Error(), stafiHubXRelayersTypes.ErrAlreadyVoted.Error()):
+			logrus.Info("no need send, already voted", "txHash", txHashStr, "type", typeStr)
+			return nil
+		case strings.Contains(err.Error(), stafiHubXRVoteTypes.ErrProposalAlreadyApproved.Error()):
+			logrus.Info("no need send, already approved", "txHash", txHashStr, "type", typeStr)
+			return nil
+		case strings.Contains(err.Error(), stafiHubXRVoteTypes.ErrProposalAlreadyExpired.Error()):
+			logrus.Info("no need send, already expired", "txHash", txHashStr, "type", typeStr)
+			return nil
+		}
+
+		return err
+	}
+
+	retry := RetryLimit
+	var res *sdk.TxResponse
+	for {
+		if retry <= 0 {
+			logrus.Error(
+				"checkAndReSendWithProposalContent QueryTxByHash, reach retry limit.",
+				"tx hash", txHashStr,
+				"err", err)
+			return fmt.Errorf("checkAndReSendWithProposalContent QueryTxByHash reach retry limit, tx hash: %s,err: %s", txHashStr, err)
+		}
+
+		//check on chain
+		res, err = h.stafihubClient.QueryTxByHash(txHashStr)
+		if err != nil || res.Empty() || res.Height == 0 {
+			if res != nil {
+				logrus.Debug(fmt.Sprintf(
+					"checkAndReSendWithProposalContent QueryTxByHash, tx failed. will query after %f second",
+					WaitTime.Seconds()),
+					"tx hash", txHashStr,
+					"res.log", res.RawLog,
+					"res.code", res.Code)
+			} else {
+				logrus.Debug(fmt.Sprintf(
+					"checkAndReSendWithProposalContent QueryTxByHash failed. will query after %f second",
+					WaitTime.Seconds()),
+					"tx hash", txHashStr,
+					"err", err)
+			}
+
+			time.Sleep(WaitTime)
+			retry--
+			continue
+		}
+
+		if res.Code != 0 {
+			switch {
+			case strings.Contains(res.RawLog, stafiHubXRelayersTypes.ErrAlreadyVoted.Error()):
+				logrus.Info("no need send, already voted", "txHash", txHashStr, "type", typeStr)
+				return nil
+			case strings.Contains(res.RawLog, stafiHubXRVoteTypes.ErrProposalAlreadyApproved.Error()):
+				logrus.Info("no need send, already approved", "txHash", txHashStr, "type", typeStr)
+				return nil
+			case strings.Contains(res.RawLog, stafiHubXRVoteTypes.ErrProposalAlreadyExpired.Error()):
+				logrus.Info("no need send, already expired", "txHash", txHashStr, "type", typeStr)
+				return nil
+
+			// resend case
+			case strings.Contains(res.RawLog, errors.ErrOutOfGas.Error()):
+				return h.checkAndReSendWithProposalContent(txHashStr, content)
+			default:
+				return fmt.Errorf("tx failed, txHash: %s, rawlog: %s", txHashStr, res.RawLog)
+			}
+		}
+
+		break
+	}
+
+	logrus.Info("checkAndReSendWithProposalContent success", "txHash", txHashStr, "type", typeStr)
+	return nil
 }
