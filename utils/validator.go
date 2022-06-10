@@ -11,24 +11,24 @@ import (
 
 var averageBlockTIme = sdk.MustNewDecFromStr("6.77")
 
-func GetAverageAnnualRatio(c *cosmosClient.Client, height int64) (sdk.Dec, error) {
-	valMap, err := GetValidatorAnnualRatio(c, height)
+func GetAverageAnnualRate(c *cosmosClient.Client, height int64) (sdk.Dec, error) {
+	valMap, err := GetValidatorAnnualRate(c, height)
 	if err != nil {
 		return sdk.ZeroDec(), err
 	}
 
-	totalAnuualRatio := sdk.NewDec(0)
+	totalAnuualRate := sdk.NewDec(0)
 	for _, val := range valMap {
-		totalAnuualRatio = totalAnuualRatio.Add(val.AnnualRatio)
+		totalAnuualRate = totalAnuualRate.Add(val.AnnualRate)
 	}
 
 	initialLen := len(valMap)
 
-	return totalAnuualRatio.Quo(sdk.NewDec(int64(initialLen))), nil
+	return totalAnuualRate.Quo(sdk.NewDec(int64(initialLen))), nil
 }
 
 func GetSelectedValidator(c *cosmosClient.Client, height, number int64) ([]*Validator, error) {
-	valMap, err := GetValidatorAnnualRatio(c, height)
+	valMap, err := GetValidatorAnnualRate(c, height)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func GetSelectedValidator(c *cosmosClient.Client, height, number int64) ([]*Vali
 	// return all validators if not enough
 	if initialLen <= int(number) {
 		sort.Slice(valSlice, func(i, j int) bool {
-			return valSlice[i].AnnualRatio.GT(valSlice[j].AnnualRatio)
+			return valSlice[i].AnnualRate.GT(valSlice[j].AnnualRate)
 		})
 		return valSlice, nil
 	}
@@ -54,7 +54,7 @@ func GetSelectedValidator(c *cosmosClient.Client, height, number int64) ([]*Vali
 	valSlice = valSlice[shouldRm : initialLen-shouldRm]
 
 	sort.Slice(valSlice, func(i, j int) bool {
-		return valSlice[i].AnnualRatio.GT(valSlice[j].AnnualRatio)
+		return valSlice[i].AnnualRate.GT(valSlice[j].AnnualRate)
 	})
 	if len(valSlice) > int(number) {
 		valSlice = valSlice[:len(valSlice)-1]
@@ -63,7 +63,7 @@ func GetSelectedValidator(c *cosmosClient.Client, height, number int64) ([]*Vali
 	return valSlice, nil
 }
 
-func GetValidatorAnnualRatio(c *cosmosClient.Client, height int64) (map[string]*Validator, error) {
+func GetValidatorAnnualRate(c *cosmosClient.Client, height int64) (map[string]*Validator, error) {
 	blockResults, err := c.GetBlockResults(height)
 	if err != nil {
 		return nil, err
@@ -107,10 +107,10 @@ func GetValidatorAnnualRatio(c *cosmosClient.Client, height int64) (map[string]*
 			sharedToken := rewardTokenAmount.Sub(commission)
 
 			rewardPerShare := sharedToken.Quo(willUseVal.ShareAmount)
-			annualRatio := rewardPerShare.Mul(sdk.NewDec(365 * 24 * 60 * 60)).Quo(averageBlockTIme)
+			annualRate := rewardPerShare.Mul(sdk.NewDec(365 * 24 * 60 * 60)).Quo(averageBlockTIme)
 
 			willUseVal.RewardAmount = rewardTokenAmount
-			willUseVal.AnnualRatio = annualRatio
+			willUseVal.AnnualRate = annualRate
 
 			vals[willUseVal.OperatorAddress] = &willUseVal
 		}
@@ -126,7 +126,7 @@ type Validator struct {
 	RewardAmount    sdk.Dec
 	ShareAmount     sdk.Dec
 	Commission      sdk.Dec
-	AnnualRatio     sdk.Dec
+	AnnualRate      sdk.Dec
 }
 
 type WrapMap struct {

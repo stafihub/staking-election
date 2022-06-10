@@ -16,7 +16,10 @@ import (
 	"github.com/stafihub/staking-election/utils"
 )
 
-const flagConfig = "config"
+const (
+	flagConfig   = "config"
+	flagLogLevel = "log-level"
+)
 
 var defaultConfigPath = os.ExpandEnv("./config.toml")
 
@@ -33,6 +36,15 @@ func startCmd() *cobra.Command {
 				return err
 			}
 			fmt.Printf("config path: %s\n", configPath)
+			logLevelStr, err := cmd.Flags().GetString(flagLogLevel)
+			if err != nil {
+				return err
+			}
+			logLevel, err := logrus.ParseLevel(logLevelStr)
+			if err != nil {
+				return err
+			}
+			logrus.SetLevel(logLevel)
 
 			conf, err := config.Load(configPath)
 			if err != nil {
@@ -90,6 +102,7 @@ func startCmd() *cobra.Command {
 	}
 
 	cmd.Flags().String(flagConfig, defaultConfigPath, "config file path")
+	cmd.Flags().String(flagLogLevel, logrus.InfoLevel.String(), "The logging level (trace|debug|info|warn|error|fatal|panic)")
 
 	return cmd
 }

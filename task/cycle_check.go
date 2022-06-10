@@ -13,6 +13,8 @@ import (
 )
 
 func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, denom string, cycleSeconds *stafiHubXRValidatorTypes.CycleSeconds, validatorNumber int64) {
+	logrus.Infof("CycleCheckValidatorHandler start, denom: %s, cycleVersion: %d, cycleSeconds: %d, validatorNumber: %d",
+		denom, cycleSeconds.Version, cycleSeconds.Seconds, validatorNumber)
 
 	ticker := time.NewTicker(time.Duration(cycleSeconds.Seconds) * time.Second)
 	defer ticker.Stop()
@@ -73,10 +75,13 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom string
 		}
 		done()
 
-		slashRes, err := cosmosClient.QueryValidatorSlashes(validatorAddr, targetHeight-1000, targetHeight)
+		fromHeight := targetHeight - 1000
+		slashRes, err := cosmosClient.QueryValidatorSlashes(validatorAddr, fromHeight, targetHeight)
 		if err != nil {
 			return err
 		}
+		logrus.Debugf("cycle: %d, validatorSlashInfo: valAddress: %s, slashAmount: %d, fromHeight: %d, toHeight: %d",
+			cycle, validatorStr, slashRes.Pagination.Total, fromHeight, targetHeight)
 
 		// redelegate if has slash
 		if slashRes.Pagination.Total > 2 {

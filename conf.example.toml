@@ -3,10 +3,10 @@ enableApi = true
 gasPrice = "0.05ufis"
 keystorePath = "/Users/tpkeeper/.stafihub"
 listenAddr = ":8083"
-stafiHubEndpointList = ["https://test-rpc1.stafihub.io:443"]
+stafiHubEndpointList = ["http://localhost:26657"]
 
 [[rTokenInfo]]
 accountPrefix = "cosmos"
 denom = "uratom"
-endpointList = ["https://test-iris-rpc1.stafihub.io:443"]
+endpointList = ["https://cosmos-rpc1.stafi.io:443"]
 validatorNumber = 5

@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stafihub/staking-election/api/ratio_handlers"
+	"github.com/stafihub/staking-election/api/rate_handlers"
 	"github.com/stafihub/staking-election/utils"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"github.com/swaggo/gin-swagger/swaggerFiles"
@@ -22,8 +22,8 @@ func InitRouters(cache *utils.WrapMap) http.Handler {
 
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	ratioHandler := ratio_handlers.NewHandler(cache)
-	router.GET("/stakingElection/api/v1/annualRatioList", ratioHandler.HandleGetAverageAnnualRatio)
+	rateHandler := rate_handlers.NewHandler(cache)
+	router.GET("/stakingElection/api/v1/annualRateList", rateHandler.HandleGetAverageAnnualRate)
 
 	return router
 }

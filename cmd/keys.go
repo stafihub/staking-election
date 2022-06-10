@@ -10,9 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var defaultNodeHome = "./keys/stafihub"
-var flagPrefix = "prefix"
-var flagHome = "home"
+var (
+	defaultNodeHome = "./keys/stafihub"
+
+	flagPrefix = "prefix"
+	flagHome   = "home"
+)
 
 func keyCmd() *cobra.Command {
 	encodingConfig := MakeEncodingConfig()
@@ -25,7 +28,7 @@ func keyCmd() *cobra.Command {
 
 	keysCmd := &cobra.Command{
 		Use:   "keys",
-		Short: "key tool to manage keys",
+		Short: "Key tool to manage keys",
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			prefix, err := cmd.Flags().GetString(flagPrefix)
 			if err != nil {

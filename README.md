@@ -12,20 +12,24 @@ cd staking-election
 make install
 ```
 
-- show version
+- staking-election -h
 
 ```
-staking-election version
+Staking-election
+
+Usage:
+  staking-election [command]
+
+Available Commands:
+  start       Start staking-election procedure
+  validators  Select high quality validators for you
+  version     Show version information
+  keys        Key tool to manage keys
+  help        Help about any command
+
+Flags:
+  -h, --help   help for staking-election
+
+Use "staking-election [command] --help" for more information about a command.
 ```
 
-- select high quality validators for you
-
-```
-staking-election validators --node https://cosmos-rpc1.stafi.io:443 --number 5
-```
-
-- start staking-election procedure
-
-```
-staking-election start --config ./conf.example.toml
-```

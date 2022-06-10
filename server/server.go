@@ -71,18 +71,18 @@ func (svr *Server) Start() error {
 		if err != nil {
 			return err
 		}
-		ratio, err := utils.GetAverageAnnualRatio(client, height)
+		rate, err := utils.GetAverageAnnualRate(client, height)
 		if err != nil {
 			return err
 		}
 
 		svr.cache.CacheMutex.Lock()
-		svr.cache.Cache[denom] = ratio.String()
+		svr.cache.Cache[denom] = rate.String()
 		svr.cache.CacheMutex.Unlock()
 	}
 
 	utils.SafeGoWithRestart(svr.ApiServer)
-	utils.SafeGoWithRestart(svr.AverageAnnualRatioHandler)
+	utils.SafeGoWithRestart(svr.AverageAnnualRateHandler)
 	return nil
 }
 
@@ -96,7 +96,8 @@ func (svr *Server) Stop() {
 	close(svr.stop)
 }
 
-func (s *Server) AverageAnnualRatioHandler() {
+func (s *Server) AverageAnnualRateHandler() {
+	logrus.Infof("AverageAnnualRateHandler start")
 	ticker := time.NewTicker(time.Duration(60) * time.Second)
 	defer ticker.Stop()
 
@@ -105,22 +106,23 @@ func (s *Server) AverageAnnualRatioHandler() {
 		case <-s.stop:
 			return
 		case <-ticker.C:
-			logrus.Debugf("AverageAnnualRatioHandler start -----------")
+			logrus.Debugf("AverageAnnualRateHandler start -----------")
 			for denom, client := range s.clientMap {
 				height, err := client.GetCurrentBlockHeight()
 				if err != nil {
 					continue
 				}
-				ratio, err := utils.GetAverageAnnualRatio(client, height)
+				rate, err := utils.GetAverageAnnualRate(client, height)
 				if err != nil {
 					continue
 				}
 
 				s.cache.CacheMutex.Lock()
-				s.cache.Cache[denom] = ratio.String()
+				s.cache.Cache[denom] = rate.String()
 				s.cache.CacheMutex.Unlock()
+				logrus.Debugf("got average rate: %s", rate.String())
 			}
-			logrus.Debugf("AverageAnnualRatioHandler end -----------")
+			logrus.Debugf("AverageAnnualRateHandler end -----------")
 		}
 	}
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+
 	"github.com/spf13/cobra"
 	client "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/staking-election/utils"
@@ -36,12 +37,12 @@ func validatorsCmd() *cobra.Command {
 				return err
 			}
 
-			allValidator, err := utils.GetValidatorAnnualRatio(c, curBLockHeight)
+			allValidator, err := utils.GetValidatorAnnualRate(c, curBLockHeight)
 			if err != nil {
 				return err
 			}
 
-			averageAnnualRatio, err := utils.GetAverageAnnualRatio(c, curBLockHeight)
+			averageAnnualRate, err := utils.GetAverageAnnualRate(c, curBLockHeight)
 			if err != nil {
 				return err
 			}
@@ -50,10 +51,10 @@ func validatorsCmd() *cobra.Command {
 				return err
 			}
 			fmt.Println("total validators: ", len(allValidator))
-			fmt.Println("average annual ratio: ", averageAnnualRatio.String())
+			fmt.Println("average annual rate: ", averageAnnualRate.String())
 			fmt.Println("\nselected validators: ")
 			for _, val := range valSlice {
-				fmt.Printf("%+v\n", val)
+				fmt.Printf("valAddress: %s annualRate: %s commission: %s tokenAmount: %s\n", val.OperatorAddress, val.AnnualRate, val.Commission, val.TokenAmount)
 			}
 
 			return nil

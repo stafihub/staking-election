@@ -1,7 +1,7 @@
 // Copyright 2021 stafiprotocol
 // SPDX-License-Identifier: LGPL-3.0-only
 
-package ratio_handlers
+package rate_handlers
 
 import "github.com/stafihub/staking-election/utils"
 

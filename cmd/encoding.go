@@ -51,7 +51,7 @@ func MakeEncodingConfig() EncodingConfig {
 	return encodingConfig
 }
 
-// MakeEncodingConfig creates an EncodingConfig for an amino based test configuration.
+// MakeEncodingConfig creates an EncodingConfig for an amino based test configuraten.
 func makeEncodingConfig() EncodingConfig {
 	amino := codec.NewLegacyAmino()
 	interfaceRegistry := types.NewInterfaceRegistry()
