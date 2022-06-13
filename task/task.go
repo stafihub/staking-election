@@ -3,6 +3,7 @@ package task
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -24,6 +25,7 @@ type Task struct {
 	electorAccount       string
 	stafihubEndpointList []string
 	rTokenInfoList       []config.RTokenInfo
+	dealedCycle          sync.Map
 	stop                 chan struct{}
 }
 
@@ -49,6 +51,12 @@ func (task *Task) Start() error {
 			return err
 		}
 
+		cycle, err := task.stafihubClient.QueryLatestVotedCycle(rTokenInfo.Denom)
+		if err != nil {
+			return err
+		}
+		task.dealedCycle.Store(rTokenInfo.Denom, cycle.LatestVotedCycle.Number)
+
 		utils.SafeGoWithRestart(func() {
 			task.CycleCheckValidatorHandler(cosmosClient, rTokenInfo.Denom, cycleSecondsRes.CycleSeconds)
 		})
@@ -70,13 +78,19 @@ func (h *Task) checkAndReSendWithProposalContent(typeStr string, content stafiHu
 	if err != nil {
 		switch {
 		case strings.Contains(err.Error(), stafiHubXRelayersTypes.ErrAlreadyVoted.Error()):
-			logrus.Info("no need send, already voted", "txHash", txHashStr, "type", typeStr)
+			logrus.WithFields(logrus.Fields{
+				"type": typeStr,
+			}).Info("no need send, already voted")
 			return nil
 		case strings.Contains(err.Error(), stafiHubXRVoteTypes.ErrProposalAlreadyApproved.Error()):
-			logrus.Info("no need send, already approved", "txHash", txHashStr, "type", typeStr)
+			logrus.WithFields(logrus.Fields{
+				"type": typeStr,
+			}).Info("no need send, already approved")
 			return nil
 		case strings.Contains(err.Error(), stafiHubXRVoteTypes.ErrProposalAlreadyExpired.Error()):
-			logrus.Info("no need send, already expired", "txHash", txHashStr, "type", typeStr)
+			logrus.WithFields(logrus.Fields{
+				"type": typeStr,
+			}).Info("no need send, already expired")
 			return nil
 		}
 
@@ -91,10 +105,10 @@ func (h *Task) checkAndReSendWithProposalContent(typeStr string, content stafiHu
 	var res *sdk.TxResponse
 	for {
 		if retry <= 0 {
-			logrus.Error(
-				"checkAndReSendWithProposalContent QueryTxByHash, reach retry limit.",
-				"tx hash", txHashStr,
-				"err", err)
+			logrus.WithFields(logrus.Fields{
+				"tx hash": txHashStr,
+				"err":     err,
+			}).Error("checkAndReSendWithProposalContent QueryTxByHash, reach retry limit.")
 			return fmt.Errorf("checkAndReSendWithProposalContent QueryTxByHash reach retry limit, tx hash: %s,err: %s", txHashStr, err)
 		}
 
@@ -124,13 +138,22 @@ func (h *Task) checkAndReSendWithProposalContent(typeStr string, content stafiHu
 		if res.Code != 0 {
 			switch {
 			case strings.Contains(res.RawLog, stafiHubXRelayersTypes.ErrAlreadyVoted.Error()):
-				logrus.Info("no need send, already voted", "txHash", txHashStr, "type", typeStr)
+				logrus.WithFields(logrus.Fields{
+					"txHash": txHashStr,
+					"type":   typeStr,
+				}).Info("no need send, already voted")
 				return nil
 			case strings.Contains(res.RawLog, stafiHubXRVoteTypes.ErrProposalAlreadyApproved.Error()):
-				logrus.Info("no need send, already approved", "txHash", txHashStr, "type", typeStr)
+				logrus.WithFields(logrus.Fields{
+					"txHash": txHashStr,
+					"type":   typeStr,
+				}).Info("no need send, already approved")
 				return nil
 			case strings.Contains(res.RawLog, stafiHubXRVoteTypes.ErrProposalAlreadyExpired.Error()):
-				logrus.Info("no need send, already expired", "txHash", txHashStr, "type", typeStr)
+				logrus.WithFields(logrus.Fields{
+					"txHash": txHashStr,
+					"type":   typeStr,
+				}).Info("no need send, already expired")
 				return nil
 
 			// resend case

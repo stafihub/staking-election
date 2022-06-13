@@ -2,3 +2,4 @@ vendor/
 build/
 *.json
 keys/
+conf.example2.toml

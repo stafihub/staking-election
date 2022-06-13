@@ -12,8 +12,8 @@ require (
 	github.com/spf13/cobra v1.4.0
 	github.com/stafihub/cosmos-relay-sdk v1.3.0
 	github.com/stafihub/rtoken-relay-core/common v0.0.0-20220514065914-3bb5cec735ea
-	github.com/stafihub/stafi-hub-relay-sdk v1.1.1
-	github.com/stafihub/stafihub v0.0.0-20220610161037-32c738f067bc
+	github.com/stafihub/stafi-hub-relay-sdk v1.2.1
+	github.com/stafihub/stafihub v0.0.0-20220612120138-bd1c83f70484
 	github.com/swaggo/gin-swagger v1.4.3
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 )

@@ -71,7 +71,7 @@ func (svr *Server) Start() error {
 		if err != nil {
 			return err
 		}
-		rate, err := utils.GetAverageAnnualRate(client, height)
+		rate, err := utils.GetAverageAnnualRate(client, height, nil)
 		if err != nil {
 			return err
 		}
@@ -112,7 +112,7 @@ func (s *Server) AverageAnnualRateHandler() {
 				if err != nil {
 					continue
 				}
-				rate, err := utils.GetAverageAnnualRate(client, height)
+				rate, err := utils.GetAverageAnnualRate(client, height, nil)
 				if err != nil {
 					continue
 				}

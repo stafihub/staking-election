@@ -9,12 +9,20 @@ import (
 	cosmosClient "github.com/stafihub/cosmos-relay-sdk/client"
 )
 
-var averageBlockTIme = sdk.MustNewDecFromStr("6.77")
+var (
+	averageBlockTIme     = sdk.MustNewDecFromStr("6.77")
+	stepNumber, stepSize = 8, 1000
+	MaxSlashAmount       = uint64(0)
+	SlashDuBlock         = int64(10000)
+)
 
-func GetAverageAnnualRate(c *cosmosClient.Client, height int64) (sdk.Dec, error) {
-	valMap, err := GetValidatorAnnualRate(c, height)
-	if err != nil {
-		return sdk.ZeroDec(), err
+func GetAverageAnnualRate(c *cosmosClient.Client, height int64, valMap map[string]*Validator) (sdk.Dec, error) {
+	var err error
+	if valMap == nil {
+		valMap, err = GetValidatorAnnualRate(c, height)
+		if err != nil {
+			return sdk.ZeroDec(), err
+		}
 	}
 
 	totalAnuualRate := sdk.NewDec(0)
@@ -27,10 +35,13 @@ func GetAverageAnnualRate(c *cosmosClient.Client, height int64) (sdk.Dec, error)
 	return totalAnuualRate.Quo(sdk.NewDec(int64(initialLen))), nil
 }
 
-func GetSelectedValidator(c *cosmosClient.Client, height, number int64) ([]*Validator, error) {
-	valMap, err := GetValidatorAnnualRate(c, height)
-	if err != nil {
-		return nil, err
+func GetSelectedValidator(c *cosmosClient.Client, height, number int64, valMap map[string]*Validator) ([]*Validator, error) {
+	var err error
+	if valMap == nil {
+		valMap, err = GetValidatorAnnualRate(c, height)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	valSlice := make([]*Validator, 0)
@@ -49,21 +60,52 @@ func GetSelectedValidator(c *cosmosClient.Client, height, number int64) ([]*Vali
 		})
 		return valSlice, nil
 	}
+	// rm 5% + 10%
+	remainStart := initialLen / 20
+	remainEnd := initialLen - initialLen/10
+	if remainStart >= remainEnd || remainEnd-remainStart < int(number) {
+		sort.Slice(valSlice, func(i, j int) bool {
+			return valSlice[i].AnnualRate.GT(valSlice[j].AnnualRate)
+		})
+		return valSlice[:number], nil
+	}
+	valSlice = valSlice[remainStart:remainEnd]
 
-	shouldRm := (initialLen - int(number)) / 2
-	valSlice = valSlice[shouldRm : initialLen-shouldRm]
-
-	sort.Slice(valSlice, func(i, j int) bool {
+	// selected by annualRate
+	sort.SliceStable(valSlice, func(i, j int) bool {
 		return valSlice[i].AnnualRate.GT(valSlice[j].AnnualRate)
 	})
-	if len(valSlice) > int(number) {
-		valSlice = valSlice[:len(valSlice)-1]
-	}
+	valSlice = valSlice[:number]
 
 	return valSlice, nil
 }
 
 func GetValidatorAnnualRate(c *cosmosClient.Client, height int64) (map[string]*Validator, error) {
+	rates := make([]map[string]*Validator, 0)
+
+	for i := 0; i < stepNumber; i++ {
+		valRates, err := GetValidatorAnnualRateOnHeight(c, height-int64(i*stepSize))
+		if err != nil {
+			return nil, err
+		}
+		rates = append(rates, valRates)
+	}
+
+	retValRates := make(map[string]*Validator)
+	for valAddr, val := range rates[0] {
+		total := sdk.ZeroDec()
+		for _, rate := range rates {
+			if valRate, exist := rate[valAddr]; exist {
+				total = total.Add(valRate.AnnualRate)
+			}
+		}
+		val.AnnualRate = total.Quo(sdk.NewDec(int64(stepNumber)))
+		retValRates[valAddr] = val
+	}
+	return retValRates, nil
+}
+
+func GetValidatorAnnualRateOnHeight(c *cosmosClient.Client, height int64) (map[string]*Validator, error) {
 	blockResults, err := c.GetBlockResults(height)
 	if err != nil {
 		return nil, err

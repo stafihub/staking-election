@@ -60,6 +60,6 @@ func keyCmd() *cobra.Command {
 	keysCmd.PersistentFlags().String(flags.FlagKeyringDir, "", "The client Keyring directory; if omitted, the default 'home' directory will be used")
 	keysCmd.PersistentFlags().String(flags.FlagKeyringBackend, "file", "Select keyring's backend (os|file|test)")
 	keysCmd.PersistentFlags().String("output", "text", "Output format (text|json)")
-	keysCmd.PersistentFlags().StringP(flagHome, "", defaultNodeHome, "directory for config and data")
+	keysCmd.PersistentFlags().StringP(flagHome, "", defaultNodeHome, "Directory for config and data")
 	return keysCmd
 }

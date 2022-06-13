@@ -101,7 +101,7 @@ func startCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().String(flagConfig, defaultConfigPath, "config file path")
+	cmd.Flags().String(flagConfig, defaultConfigPath, "Config file path")
 	cmd.Flags().String(flagLogLevel, logrus.InfoLevel.String(), "The logging level (trace|debug|info|warn|error|fatal|panic)")
 
 	return cmd
