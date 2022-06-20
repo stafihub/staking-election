@@ -6,21 +6,23 @@ import (
 
 	"github.com/sirupsen/logrus"
 	cosmosClient "github.com/stafihub/cosmos-relay-sdk/client"
+	stafihubClient "github.com/stafihub/stafi-hub-relay-sdk/client"
 	"github.com/stafihub/staking-election/api"
 	"github.com/stafihub/staking-election/config"
 	"github.com/stafihub/staking-election/utils"
 )
 
 type Server struct {
-	listenAddr string
-	httpServer *http.Server
-	stop       chan struct{}
-	cfg        *config.Config
-	cache      *utils.WrapMap
-	clientMap  map[string]*cosmosClient.Client
+	listenAddr      string
+	httpServer      *http.Server
+	stop            chan struct{}
+	cfg             *config.Config
+	cache           *utils.WrapMap
+	cosmosClientMap map[string]*cosmosClient.Client
+	stafihubClient  *stafihubClient.Client
 }
 
-func NewServer(cfg *config.Config) (*Server, error) {
+func NewServer(cfg *config.Config, stafihubClient *stafihubClient.Client) (*Server, error) {
 	s := &Server{
 		listenAddr: cfg.ListenAddr,
 		cfg:        cfg,
@@ -28,6 +30,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		cache: &utils.WrapMap{
 			Cache: make(map[string]string),
 		},
+		stafihubClient: stafihubClient,
 	}
 
 	handler := s.InitHandler(s.cache)
@@ -58,15 +61,19 @@ func (svr *Server) ApiServer() {
 }
 
 func (svr *Server) Start() error {
-	svr.clientMap = make(map[string]*cosmosClient.Client)
+	svr.cosmosClientMap = make(map[string]*cosmosClient.Client)
 	for _, rtokenInfo := range svr.cfg.RTokenInfo {
-		client, err := cosmosClient.NewClient(nil, "", "", rtokenInfo.AccountPrefix, rtokenInfo.EndpointList)
+		addressPrefixRes, err := svr.stafihubClient.QueryAddressPrefix(rtokenInfo.Denom)
 		if err != nil {
 			return err
 		}
-		svr.clientMap[rtokenInfo.Denom] = client
+		client, err := cosmosClient.NewClient(nil, "", "", addressPrefixRes.AccAddressPrefix, rtokenInfo.EndpointList)
+		if err != nil {
+			return err
+		}
+		svr.cosmosClientMap[rtokenInfo.Denom] = client
 	}
-	for denom, client := range svr.clientMap {
+	for denom, client := range svr.cosmosClientMap {
 		height, err := client.GetCurrentBlockHeight()
 		if err != nil {
 			return err
@@ -107,7 +114,7 @@ func (s *Server) AverageAnnualRateHandler() {
 			return
 		case <-ticker.C:
 			logrus.Debugf("AverageAnnualRateHandler start -----------")
-			for denom, client := range s.clientMap {
+			for denom, client := range s.cosmosClientMap {
 				height, err := client.GetCurrentBlockHeight()
 				if err != nil {
 					continue

@@ -6,6 +6,5 @@ listenAddr = ":8083"
 stafiHubEndpointList = ["http://localhost:26657"]
 
 [[rTokenInfo]]
-accountPrefix = "cosmos"
 denom = "uratom"
 endpointList = ["https://cosmos-rpc1.stafi.io:443"]

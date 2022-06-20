@@ -46,7 +46,11 @@ func (task *Task) Start() error {
 		if err != nil {
 			return err
 		}
-		cosmosClient, err := cosmosClient.NewClient(nil, "", "", rTokenInfo.AccountPrefix, rTokenInfo.EndpointList)
+		addressPrefixRes, err := task.stafihubClient.QueryAddressPrefix(rTokenInfo.Denom)
+		if err != nil {
+			return err
+		}
+		cosmosClient, err := cosmosClient.NewClient(nil, "", "", addressPrefixRes.AccAddressPrefix, rTokenInfo.EndpointList)
 		if err != nil {
 			return err
 		}
@@ -57,9 +61,16 @@ func (task *Task) Start() error {
 		}
 		task.dealedCycle.Store(rTokenInfo.Denom, cycle.LatestVotedCycle.Number)
 
-		utils.SafeGoWithRestart(func() {
-			task.CycleCheckValidatorHandler(cosmosClient, rTokenInfo.Denom, cycleSecondsRes.CycleSeconds)
-		})
+		bondedPoolsRes, err := task.stafihubClient.QueryPools(rTokenInfo.Denom)
+		if err != nil {
+			return err
+		}
+
+		for _, poolAddrStr := range bondedPoolsRes.Addrs {
+			utils.SafeGoWithRestart(func() {
+				task.CycleCheckValidatorHandler(cosmosClient, rTokenInfo.Denom, poolAddrStr, cycleSecondsRes.CycleSeconds)
+			})
+		}
 	}
 
 	return nil

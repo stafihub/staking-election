@@ -79,7 +79,7 @@ func startCmd() *cobra.Command {
 
 			if conf.EnableApi {
 				//server
-				server, err := server.NewServer(conf)
+				server, err := server.NewServer(conf, client)
 				if err != nil {
 					logrus.Errorf("new server err: %s", err)
 					return err

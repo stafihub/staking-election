@@ -21,9 +21,8 @@ type Config struct {
 }
 
 type RTokenInfo struct {
-	Denom         string
-	AccountPrefix string
-	EndpointList  []string
+	Denom        string
+	EndpointList []string
 }
 
 func Load(configFilePath string) (*Config, error) {
