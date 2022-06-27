@@ -10,10 +10,10 @@ require (
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
-	github.com/stafihub/cosmos-relay-sdk v1.3.0
-	github.com/stafihub/rtoken-relay-core/common v0.0.0-20220620035127-68ed4f892e36
-	github.com/stafihub/stafi-hub-relay-sdk v1.2.2-0.20220620094438-1df34fb7d566
-	github.com/stafihub/stafihub v0.0.0-20220620003407-36a0ae552c35
+	github.com/stafihub/cosmos-relay-sdk v1.5.0
+	github.com/stafihub/rtoken-relay-core/common v0.0.0-20220623080304-9dbf91f335c2
+	github.com/stafihub/stafi-hub-relay-sdk v1.3.1
+	github.com/stafihub/stafihub v0.0.0-20220623075958-3655a36da581
 	github.com/swaggo/gin-swagger v1.4.3
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 )

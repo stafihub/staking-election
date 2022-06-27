@@ -13,12 +13,10 @@ import (
 	"github.com/stafihub/staking-election/utils"
 )
 
-func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, denom, poolAddrStr string, cycleSeconds *stafiHubXRValidatorTypes.CycleSeconds) {
+func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, denom, poolAddrStr string) {
 	logrus.WithFields(logrus.Fields{
-		"denom":        denom,
-		"poolAddr":     poolAddrStr,
-		"cycleVersion": cycleSeconds.Version,
-		"cycleSeconds": cycleSeconds.Seconds,
+		"denom":    denom,
+		"poolAddr": poolAddrStr,
 	}).Info("CycleCheckValidatorHandler start")
 
 	ticker := time.NewTicker(time.Duration(60) * time.Second)
@@ -37,7 +35,7 @@ func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, 
 			return
 		case <-ticker.C:
 			logrus.Info("task CycleCheckValidatorHandler start ----------->")
-			err := task.CheckValidator(cosmosClient, denom, poolAddrStr, cycleSeconds)
+			err := task.CheckValidator(cosmosClient, denom, poolAddrStr)
 			if err != nil {
 				logrus.Warnf("CheckValidator failed: %s", err)
 				time.Sleep(WaitTime)
@@ -51,30 +49,41 @@ func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, 
 	}
 }
 
-func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolAddrStr string, cycleSeconds *stafiHubXRValidatorTypes.CycleSeconds) error {
+func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolAddrStr string) error {
+	cycleSecondsRes, err := task.stafihubClient.QueryCycleSeconds(denom)
+	if err != nil {
+		return err
+	}
+	cycleInfoOnChain := cycleSecondsRes.CycleSeconds
 	currentBlockHeight, err := cosmosClient.GetCurrentBlockHeight()
 	if err != nil {
 		return err
 	}
-	useSeconds := cycleSeconds.Seconds
-	cycle := uint64(currentBlockHeight) / useSeconds
-	targetHeight := int64(cycle * useSeconds)
+	useSeconds := cycleInfoOnChain.Seconds
+
+	// cal current cycle/targetHeight/slashFromHeight
+	currentCycle := uint64(currentBlockHeight) / useSeconds
+	targetHeight := int64(currentCycle * useSeconds)
 	slashFromHeight := targetHeight - utils.SlashDuBlock
 
-	dealedCycleAny, ok := task.dealedCycle.Load(denom)
-	if !ok {
-		return fmt.Errorf("dealed Cycle not exist")
+	// get local checked cycle
+	localCheckedCycleVersion, localCheckedCycleNumber, found := task.getLocalCheckedCycle(denom, poolAddrStr)
+	if !found {
+		return fmt.Errorf("local checked cycle not exist")
 	}
-	dealedCycle := dealedCycleAny.(uint64)
-	if cycle <= dealedCycle {
+	// return if this cycle was already checked
+	if cycleInfoOnChain.Version == localCheckedCycleVersion && currentCycle <= localCheckedCycleNumber {
 		logrus.WithFields(logrus.Fields{
-			"dealedCycle": dealedCycle,
-			"cycle":       cycle,
-		}).Debug("checkValidator no need deal")
+			"localCheckedCycleVersion": localCheckedCycleVersion,
+			"localCheckedCycleNUMBER":  localCheckedCycleNumber,
+			"currentCycle":             currentCycle,
+		}).Debug("checkValidator no need check this cycle")
 		return nil
 	}
+	// return if latestVotedCycle hasn't been reported
 
-	// get on chain rValidators
+	// ---------------- check rvalidator ------------
+	// 0. get rValidators on chain
 	rValidatorList, err := task.stafihubClient.QueryRValidatorList(denom, poolAddrStr)
 	if err != nil {
 		return err
@@ -87,7 +96,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 		rValidatorMap[rval] = true
 	}
 
-	// collector all rValidators need rm
+	// 1. collect all rValidators need rm
 	needRmValidator := make([]string, 0)
 	for _, validatorStr := range rValidatorList.RValidatorList {
 		done := core.UseSdkConfigContext(cosmosClient.GetAccountPrefix())
@@ -98,30 +107,36 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 		}
 		done()
 
+		// (0). rm if it has slash
 		slashRes, err := cosmosClient.QueryValidatorSlashes(validatorAddr, slashFromHeight, targetHeight)
 		if err != nil {
 			return err
 		}
 		logrus.WithFields(logrus.Fields{
-			"cycle":        cycle,
+			"currentCycle": currentCycle,
 			"valAddr":      validatorStr,
 			"slashAmount":  slashRes.Pagination.Total,
 			"fromHeight":   slashFromHeight,
 			"targetHeight": targetHeight,
 		}).Debug("validatorSlashInfo")
 
-		// redelegate if has slash
-		if slashRes.Pagination.Total >= utils.MaxSlashAmount {
+		if slashRes.Pagination.Total > utils.MaxSlashAmount {
 			needRmValidator = append(needRmValidator, validatorStr)
 		}
+
+		// (1). rm if it missed blocks excessively
+
+		// (2). rm if it's commssion is too big
+		// (3). check if it is removeable(transitive redelegate is not permitted)
+
 	}
 	if len(needRmValidator) == 0 {
 		logrus.Debug("needRmValidator is empty, no need redelegate")
-		task.dealedCycle.Store(denom, cycle)
+		task.setLocalCheckedCycle(denom, poolAddrStr, cycleInfoOnChain.Version, currentCycle)
 		return nil
 	}
 
-	// select highquality validators from original chain, number = 2 * len(rValidatorList)
+	// 2. select highquality validators from original chain, number = 2 * len(rValidatorList)
 	selectedValidator, err := utils.GetSelectedValidator(cosmosClient, targetHeight, int64(len(rValidatorList.RValidatorList)*3), nil)
 	if err != nil {
 		return err
@@ -158,17 +173,17 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 		return fmt.Errorf("selected validator not enough to redelegate")
 	}
 
-	//todo checkout redelegations with old validator incase of( a -> b, b -> a )
+	//todo check transitive redelegations for old validator incase of( a -> b, b -> a )
 
 	logrus.WithFields(logrus.Fields{
 		"oldVal":        needRmValidator[0],
 		"newVal":        willUseValidator[0],
-		"cycleVersion:": cycleSeconds.Version,
-		"cycle":         cycle,
+		"cycleVersion:": cycleInfoOnChain.Version,
+		"currentCycle":  currentCycle,
 		"denom":         denom,
 	}).Info("will redelegate info")
 
-	// we update one validator every cycle
+	// 3. we update one validator every cycle
 	done := core.UseSdkConfigContext(stafihubClient.GetAccountPrefix())
 	fromAddress := task.stafihubClient.GetFromAddress().String()
 	done()
@@ -181,15 +196,15 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 		willUseValidator[0],
 		&stafiHubXRValidatorTypes.Cycle{
 			Denom:   denom,
-			Version: cycleSeconds.Version,
-			Number:  cycle,
+			Version: cycleInfoOnChain.Version,
+			Number:  currentCycle,
 		})
 
 	err = task.checkAndReSendWithProposalContent("NewUpdateRValidatorProposal", content)
 	if err != nil {
 		return err
 	}
-	task.dealedCycle.Store(denom, cycle)
+	task.setLocalCheckedCycle(denom, poolAddrStr, cycleInfoOnChain.Version, currentCycle)
 
 	return nil
 }

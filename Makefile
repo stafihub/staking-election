@@ -24,6 +24,10 @@ build-linux:
 	@GOOS=linux GOARCH=amd64 go build --mod readonly $(BUILD_FLAGS) -o ./build/staking-election main.go
 
 clean:
+	@echo " > \033[32mCleanning build files ...\033[0m "
 	rm -rf build
+fmt :
+	@echo " > \033[32mFormatting go files ...\033[0m "
+	go fmt ./...
 
 .PHONY: all lint test race msan tools clean build

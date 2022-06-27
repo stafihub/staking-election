@@ -19,13 +19,14 @@ import (
 
 var RetryLimit = 100
 var WaitTime = time.Second * 6
+var cycleFactor = uint64(1e10)
 
 type Task struct {
 	stafihubClient       *stafihubClient.Client
 	electorAccount       string
 	stafihubEndpointList []string
 	rTokenInfoList       []config.RTokenInfo
-	dealedCycle          sync.Map
+	localCheckedCycle    sync.Map // avoid repeated check
 	stop                 chan struct{}
 }
 
@@ -40,12 +41,22 @@ func NewTask(cfg *config.Config, stafihubClient *stafihubClient.Client) *Task {
 	return s
 }
 
+func (task *Task) setLocalCheckedCycle(denom, poolAddrStr string, cycleVersion, cycleNumber uint64) {
+	task.localCheckedCycle.Store(denom+poolAddrStr, cycleVersion*cycleFactor+cycleNumber)
+}
+
+func (task *Task) getLocalCheckedCycle(denom, poolAddrStr string) (cycleVersion, cycleNumber uint64, found bool) {
+	anyValue, found := task.localCheckedCycle.Load(denom + poolAddrStr)
+	if !found {
+		return 0, 0, false
+	}
+	value := anyValue.(uint64)
+	return value / cycleFactor, value % cycleFactor, true
+}
+
 func (task *Task) Start() error {
 	for _, rTokenInfo := range task.rTokenInfoList {
-		cycleSecondsRes, err := task.stafihubClient.QueryCycleSeconds(rTokenInfo.Denom)
-		if err != nil {
-			return err
-		}
+
 		addressPrefixRes, err := task.stafihubClient.QueryAddressPrefix(rTokenInfo.Denom)
 		if err != nil {
 			return err
@@ -55,20 +66,20 @@ func (task *Task) Start() error {
 			return err
 		}
 
-		cycle, err := task.stafihubClient.QueryLatestVotedCycle(rTokenInfo.Denom)
-		if err != nil {
-			return err
-		}
-		task.dealedCycle.Store(rTokenInfo.Denom, cycle.LatestVotedCycle.Number)
-
 		bondedPoolsRes, err := task.stafihubClient.QueryPools(rTokenInfo.Denom)
 		if err != nil {
 			return err
 		}
 
 		for _, poolAddrStr := range bondedPoolsRes.Addrs {
+			cycle, err := task.stafihubClient.QueryLatestVotedCycle(rTokenInfo.Denom, poolAddrStr)
+			if err != nil {
+				return err
+			}
+			task.setLocalCheckedCycle(rTokenInfo.Denom, poolAddrStr, cycle.LatestVotedCycle.Version, cycle.LatestVotedCycle.Number)
+
 			utils.SafeGoWithRestart(func() {
-				task.CycleCheckValidatorHandler(cosmosClient, rTokenInfo.Denom, poolAddrStr, cycleSecondsRes.CycleSeconds)
+				task.CycleCheckValidatorHandler(cosmosClient, rTokenInfo.Denom, poolAddrStr)
 			})
 		}
 	}
@@ -103,6 +114,10 @@ func (h *Task) checkAndReSendWithProposalContent(typeStr string, content stafiHu
 				"type": typeStr,
 			}).Info("no need send, already expired")
 			return nil
+
+		// resend case:
+		case strings.Contains(err.Error(), errors.ErrWrongSequence.Error()):
+			return h.checkAndReSendWithProposalContent(txHashStr, content)
 		}
 
 		return err
