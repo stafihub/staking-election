@@ -133,7 +133,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		return nil
 	}
 	for _, delegation := range delegationsRes.DelegationResponses {
-		if _, exist := rValidatorMap[delegation.Delegation.ValidatorAddress]; !exist {
+		if !rValidatorMap[delegation.Delegation.ValidatorAddress] {
 			return nil
 		}
 	}
@@ -248,7 +248,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		}
 		done()
 
-		//should remove slashed validators
+		// (0). should skip slashed validators
 		slashRes, err := cosmosClient.QueryValidatorSlashes(valAddress, slashFromHeight, targetHeight)
 		if err != nil {
 			return err
@@ -257,9 +257,45 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 			continue
 		}
 
-		if !rValidatorMap[val.OperatorAddress] {
-			willUseValidator = append(willUseValidator, val.OperatorAddress)
+		// (1). should skip duplicate validator
+		if rValidatorMap[val.OperatorAddress] {
+			continue
 		}
+
+		// (2). should skip missed blocks excessively validator
+		validatorRes, err := cosmosClient.QueryValidator(val.OperatorAddress, targetHeight)
+		if err != nil {
+			return err
+		}
+		rtokenInfo, exist := task.rTokenInfoMap[denom]
+		if !exist {
+			return fmt.Errorf("rtoken info of denom %s not exist", denom)
+		}
+
+		done = core.UseSdkConfigContext(cosmosClient.GetAccountPrefix())
+		consPubkeyJson, err := cosmosClient.Ctx().Codec.MarshalJSON(validatorRes.Validator.ConsensusPubkey)
+		if err != nil {
+			done()
+			return err
+		}
+		var pk cryptotypes.PubKey
+		if err := cosmosClient.Ctx().Codec.UnmarshalInterfaceJSON(consPubkeyJson, &pk); err != nil {
+			done()
+			return err
+		}
+		consAddr := sdk.ConsAddress(pk.Address())
+		consAddrStr := consAddr.String()
+		done()
+
+		signInfo, err := cosmosClient.QuerySigningInfo(consAddrStr, targetHeight)
+		if err != nil {
+			return err
+		}
+		if signInfo.ValSigningInfo.MissedBlocksCounter > rtokenInfo.MaxMissedBlocks {
+			continue
+		}
+
+		willUseValidator = append(willUseValidator, val.OperatorAddress)
 		if len(willUseValidator) == len(needRmValidators) {
 			break
 		}
