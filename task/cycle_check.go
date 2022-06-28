@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sirupsen/logrus"
 	cosmosSdkClient "github.com/stafihub/cosmos-relay-sdk/client"
@@ -162,11 +163,17 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 
 		// (2). rm if it missed blocks excessively
 		done = core.UseSdkConfigContext(cosmosClient.GetAccountPrefix())
-		consAddr, err := validatorRes.Validator.GetConsAddr()
+		consPubkeyJson, err := cosmosClient.Ctx().Codec.MarshalJSON(validatorRes.Validator.ConsensusPubkey)
 		if err != nil {
 			done()
 			return err
 		}
+		var pk cryptotypes.PubKey
+		if err := cosmosClient.Ctx().Codec.UnmarshalInterfaceJSON(consPubkeyJson, &pk); err != nil {
+			done()
+			return err
+		}
+		consAddr := sdk.ConsAddress(pk.Address())
 		consAddrStr := consAddr.String()
 		done()
 
@@ -174,7 +181,8 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		if err != nil {
 			return err
 		}
-		if signInfo.ValidatorSigningInfo.MissedBlocksCounter > rtokenInfo.MaxMissedBlocks {
+
+		if signInfo.ValSigningInfo.MissedBlocksCounter > rtokenInfo.MaxMissedBlocks {
 			needRmValidators = append(needRmValidators, validatorStr)
 			continue
 		}

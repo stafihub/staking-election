@@ -10,7 +10,7 @@ require (
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.4.0
-	github.com/stafihub/cosmos-relay-sdk v1.5.1
+	github.com/stafihub/cosmos-relay-sdk v1.5.2
 	github.com/stafihub/rtoken-relay-core/common v0.0.0-20220623080304-9dbf91f335c2
 	github.com/stafihub/stafi-hub-relay-sdk v1.3.1
 	github.com/stafihub/stafihub v0.0.0-20220623075958-3655a36da581
