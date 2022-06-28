@@ -8,3 +8,5 @@ stafiHubEndpointList = ["http://localhost:26657"]
 [[rTokenInfo]]
 denom = "uratom"
 endpointList = ["https://cosmos-rpc1.stafi.io:443"]
+maxCommission = "0.1"
+maxMissedBlocks = 100

@@ -74,12 +74,12 @@ func selectValidatorsCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				// should remove slashed validators
+				// (0). should remove slashed validators
 				if slashRes.Pagination.Total > utils.MaxSlashAmount {
 					continue
 				}
 
-				// should skip missed blocks excessively validator
+				// (1). should skip missed blocks excessively validator
 				validatorRes, err := c.QueryValidator(val.OperatorAddress, curBLockHeight)
 				if err != nil {
 					return err
@@ -104,7 +104,7 @@ func selectValidatorsCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if signInfo.ValSigningInfo.MissedBlocksCounter > maxMissedBlocks {
+				if validatorRes.Validator.Jailed || signInfo.ValSigningInfo.Tombstoned || signInfo.ValSigningInfo.MissedBlocksCounter > maxMissedBlocks {
 					continue
 				}
 
@@ -118,7 +118,7 @@ func selectValidatorsCmd() *cobra.Command {
 	cmd.Flags().String(flagNode, "http://localhost:26657", "Node rpc endpoint")
 	cmd.Flags().Int64(flagNumber, 5, "Validators number limit")
 	cmd.Flags().String(flagPrefix, "cosmos", "Account prefix (comos|stafi|iaa)")
-	cmd.Flags().Int64(flagMaxMissedBlocks, 10, "max missed blocks")
+	cmd.Flags().Int64(flagMaxMissedBlocks, 100, "max missed blocks")
 
 	return cmd
 }

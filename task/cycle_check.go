@@ -257,7 +257,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 			continue
 		}
 
-		// (1). should skip duplicate validator
+		// (1). should skip existed validator
 		if rValidatorMap[val.OperatorAddress] {
 			continue
 		}
@@ -291,10 +291,11 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		if err != nil {
 			return err
 		}
-		if signInfo.ValSigningInfo.MissedBlocksCounter > rtokenInfo.MaxMissedBlocks {
+		if validatorRes.Validator.Jailed || signInfo.ValSigningInfo.Tombstoned || signInfo.ValSigningInfo.MissedBlocksCounter > rtokenInfo.MaxMissedBlocks {
 			continue
 		}
 
+		// append passed validator
 		willUseValidator = append(willUseValidator, val.OperatorAddress)
 		if len(willUseValidator) == len(needRmValidators) {
 			break
