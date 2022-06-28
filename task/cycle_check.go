@@ -2,18 +2,19 @@ package task
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sirupsen/logrus"
-	cosmosClient "github.com/stafihub/cosmos-relay-sdk/client"
+	cosmosSdkClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	stafihubClient "github.com/stafihub/stafi-hub-relay-sdk/client"
 	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 	"github.com/stafihub/staking-election/utils"
 )
 
-func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, denom, poolAddrStr string) {
+func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosSdkClient.Client, denom, poolAddrStr string) {
 	logrus.WithFields(logrus.Fields{
 		"denom":    denom,
 		"poolAddr": poolAddrStr,
@@ -49,7 +50,7 @@ func (task *Task) CycleCheckValidatorHandler(cosmosClient *cosmosClient.Client, 
 	}
 }
 
-func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolAddrStr string) error {
+func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, poolAddrStr string) error {
 	cycleSecondsRes, err := task.stafihubClient.QueryCycleSeconds(denom)
 	if err != nil {
 		return err
@@ -71,6 +72,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 	if !found {
 		return fmt.Errorf("local checked cycle not exist")
 	}
+
 	// return if this cycle was already checked
 	if cycleInfoOnChain.Version == localCheckedCycleVersion && currentCycle <= localCheckedCycleNumber {
 		logrus.WithFields(logrus.Fields{
@@ -80,7 +82,26 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 		}).Debug("checkValidator no need check this cycle")
 		return nil
 	}
+
 	// return if latestVotedCycle hasn't been reported
+	latestVotedCycle, err := task.stafihubClient.QueryLatestVotedCycle(denom, poolAddrStr)
+	if err != nil {
+		return err
+	}
+	latestDealedCycle, err := task.stafihubClient.QueryLatestDealedCycle(denom, poolAddrStr)
+	if err != nil && !strings.Contains(err.Error(), "NotFound") {
+		return err
+	}
+	if latestVotedCycle.LatestVotedCycle.Number != 0 {
+		if err != nil && strings.Contains(err.Error(), "NotFound") {
+			return nil
+		}
+
+		if !(latestVotedCycle.LatestVotedCycle.Version == latestDealedCycle.LatestDealedCycle.Version &&
+			latestVotedCycle.LatestVotedCycle.Number == latestDealedCycle.LatestDealedCycle.Number) {
+			return nil
+		}
+	}
 
 	// ---------------- check rvalidator ------------
 	// 0. get rValidators on chain
@@ -97,7 +118,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 	}
 
 	// 1. collect all rValidators need rm
-	needRmValidator := make([]string, 0)
+	needRmValidators := make([]string, 0)
 	for _, validatorStr := range rValidatorList.RValidatorList {
 		done := core.UseSdkConfigContext(cosmosClient.GetAccountPrefix())
 		validatorAddr, err := sdk.ValAddressFromBech32(validatorStr)
@@ -121,22 +142,68 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 		}).Debug("validatorSlashInfo")
 
 		if slashRes.Pagination.Total > utils.MaxSlashAmount {
-			needRmValidator = append(needRmValidator, validatorStr)
+			needRmValidators = append(needRmValidators, validatorStr)
+			continue
 		}
 
-		// (1). rm if it missed blocks excessively
+		// (1). rm if it's commssion is too big
+		validatorRes, err := cosmosClient.QueryValidator(validatorStr, targetHeight)
+		if err != nil {
+			return err
+		}
+		rtokenInfo, exist := task.rTokenInfoMap[denom]
+		if !exist {
+			return fmt.Errorf("rtoken info of denom %s not exist", denom)
+		}
+		if validatorRes.Validator.Commission.Rate.GT(rtokenInfo.MaxCommission) {
+			needRmValidators = append(needRmValidators, validatorStr)
+			continue
+		}
 
-		// (2). rm if it's commssion is too big
-		// (3). check if it is removeable(transitive redelegate is not permitted)
+		// (2). rm if it missed blocks excessively
+		done = core.UseSdkConfigContext(cosmosClient.GetAccountPrefix())
+		consAddr, err := validatorRes.Validator.GetConsAddr()
+		if err != nil {
+			done()
+			return err
+		}
+		consAddrStr := consAddr.String()
+		done()
+
+		signInfo, err := cosmosClient.QuerySigningInfo(consAddrStr, targetHeight)
+		if err != nil {
+			return err
+		}
+		if signInfo.ValidatorSigningInfo.MissedBlocksCounter > rtokenInfo.MaxMissedBlocks {
+			needRmValidators = append(needRmValidators, validatorStr)
+			continue
+		}
 
 	}
-	if len(needRmValidator) == 0 {
+	// 2. check if it is removeable(transitive redelegate is not permitted ( a -> b, b -> c ))
+	redelegations, err := cosmosClient.QueryAllRedelegations(poolAddrStr, targetHeight)
+	if err != nil {
+		return err
+	}
+	hasToRedelegation := make(map[string]bool)
+	for _, redelegation := range redelegations.RedelegationResponses {
+		hasToRedelegation[redelegation.Redelegation.ValidatorDstAddress] = true
+	}
+
+	filteredNeedRmVal := make([]string, 0)
+	for _, needRmVal := range needRmValidators {
+		if !hasToRedelegation[needRmVal] {
+			filteredNeedRmVal = append(filteredNeedRmVal, needRmVal)
+		}
+	}
+	needRmValidators = filteredNeedRmVal
+	if len(needRmValidators) == 0 {
 		logrus.Debug("needRmValidator is empty, no need redelegate")
 		task.setLocalCheckedCycle(denom, poolAddrStr, cycleInfoOnChain.Version, currentCycle)
 		return nil
 	}
 
-	// 2. select highquality validators from original chain, number = 2 * len(rValidatorList)
+	// 3. select highquality validators from original chain, number = 2 * len(rValidatorList)
 	selectedValidator, err := utils.GetSelectedValidator(cosmosClient, targetHeight, int64(len(rValidatorList.RValidatorList)*3), nil)
 	if err != nil {
 		return err
@@ -164,19 +231,17 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 		if !rValidatorMap[val.OperatorAddress] {
 			willUseValidator = append(willUseValidator, val.OperatorAddress)
 		}
-		if len(willUseValidator) == len(needRmValidator) {
+		if len(willUseValidator) == len(needRmValidators) {
 			break
 		}
 	}
 
-	if len(needRmValidator) != len(willUseValidator) {
+	if len(needRmValidators) != len(willUseValidator) {
 		return fmt.Errorf("selected validator not enough to redelegate")
 	}
 
-	//todo check transitive redelegations for old validator incase of( a -> b, b -> a )
-
 	logrus.WithFields(logrus.Fields{
-		"oldVal":        needRmValidator[0],
+		"oldVal":        needRmValidators[0],
 		"newVal":        willUseValidator[0],
 		"cycleVersion:": cycleInfoOnChain.Version,
 		"currentCycle":  currentCycle,
@@ -192,7 +257,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosClient.Client, denom, poolA
 		fromAddress,
 		denom,
 		poolAddrStr,
-		needRmValidator[0],
+		needRmValidators[0],
 		willUseValidator[0],
 		&stafiHubXRValidatorTypes.Cycle{
 			Denom:   denom,

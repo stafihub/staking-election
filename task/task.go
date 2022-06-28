@@ -25,17 +25,22 @@ type Task struct {
 	stafihubClient       *stafihubClient.Client
 	electorAccount       string
 	stafihubEndpointList []string
-	rTokenInfoList       []config.RTokenInfo
+	rTokenInfoMap        map[string]config.RTokenInfo
 	localCheckedCycle    sync.Map // avoid repeated check
 	stop                 chan struct{}
 }
 
 func NewTask(cfg *config.Config, stafihubClient *stafihubClient.Client) *Task {
+	rTokenInfoMap := make(map[string]config.RTokenInfo)
+	for _, rtokenInfo := range cfg.RTokenInfo {
+		rTokenInfoMap[rtokenInfo.Denom] = rtokenInfo
+	}
+
 	s := &Task{
 		stafihubClient:       stafihubClient,
 		electorAccount:       cfg.ElectorAccount,
 		stafihubEndpointList: cfg.StafiHubEndpointList,
-		rTokenInfoList:       cfg.RTokenInfo,
+		rTokenInfoMap:        rTokenInfoMap,
 		stop:                 make(chan struct{}),
 	}
 	return s
@@ -55,7 +60,7 @@ func (task *Task) getLocalCheckedCycle(denom, poolAddrStr string) (cycleVersion,
 }
 
 func (task *Task) Start() error {
-	for _, rTokenInfo := range task.rTokenInfoList {
+	for _, rTokenInfo := range task.rTokenInfoMap {
 
 		addressPrefixRes, err := task.stafihubClient.QueryAddressPrefix(rTokenInfo.Denom)
 		if err != nil {
