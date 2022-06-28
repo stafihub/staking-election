@@ -104,8 +104,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		}
 	}
 
-	// ---------------- check rvalidator ------------
-	// 0. get rValidators on chain
+	// return if rvalidators not equal to validators which were delegated on chain
 	rValidatorList, err := task.stafihubClient.QueryRValidatorList(denom, poolAddrStr)
 	if err != nil {
 		return err
@@ -118,6 +117,28 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		rValidatorMap[rval] = true
 	}
 
+	done := core.UseSdkConfigContext(cosmosClient.GetAccountPrefix())
+	poolAddr, err := sdk.AccAddressFromBech32(poolAddrStr)
+	if err != nil {
+		done()
+		return err
+	}
+	done()
+
+	delegationsRes, err := cosmosClient.QueryDelegations(poolAddr, targetHeight)
+	if err != nil {
+		return err
+	}
+	if len(rValidatorMap) != len(delegationsRes.DelegationResponses) {
+		return nil
+	}
+	for _, delegation := range delegationsRes.DelegationResponses {
+		if _, exist := rValidatorMap[delegation.Delegation.ValidatorAddress]; !exist {
+			return nil
+		}
+	}
+
+	// ---------------- check rvalidator ------------
 	// 1. collect all rValidators need rm
 	needRmValidators := make([]string, 0)
 	for _, validatorStr := range rValidatorList.RValidatorList {
@@ -257,7 +278,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 	}).Info("will redelegate info")
 
 	// 3. we update one validator every cycle
-	done := core.UseSdkConfigContext(stafihubClient.GetAccountPrefix())
+	done = core.UseSdkConfigContext(stafihubClient.GetAccountPrefix())
 	fromAddress := task.stafihubClient.GetFromAddress().String()
 	done()
 
