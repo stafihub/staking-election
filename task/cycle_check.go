@@ -2,7 +2,6 @@ package task
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
@@ -56,16 +55,24 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 	if err != nil {
 		return err
 	}
+	shuffleSecondsRes, err := task.stafihubClient.QueryShuffleSeconds(denom)
+	if err != nil {
+		return err
+	}
+
 	cycleInfoOnChain := cycleSecondsRes.CycleSeconds
-	currentBlockHeight, err := cosmosClient.GetCurrentBlockHeight()
+	_, curTimestamp, err := cosmosClient.GetCurrentBLockAndTimestamp()
 	if err != nil {
 		return err
 	}
 	useSeconds := cycleInfoOnChain.Seconds
 
 	// cal current cycle/targetHeight/slashFromHeight
-	currentCycle := uint64(currentBlockHeight) / useSeconds
-	targetHeight := int64(currentCycle * useSeconds)
+	currentCycleNumber := uint64(curTimestamp) / useSeconds
+	targetHeight, err := cosmosClient.GetHeightByEra(uint32(currentCycleNumber), int64(useSeconds), 0)
+	if err != nil {
+		return err
+	}
 	slashFromHeight := targetHeight - utils.SlashDuBlock
 
 	// get local checked cycle
@@ -75,11 +82,11 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 	}
 
 	// return if this cycle was already checked
-	if cycleInfoOnChain.Version == localCheckedCycleVersion && currentCycle <= localCheckedCycleNumber {
+	if cycleInfoOnChain.Version == localCheckedCycleVersion && currentCycleNumber <= localCheckedCycleNumber {
 		logrus.WithFields(logrus.Fields{
 			"localCheckedCycleVersion": localCheckedCycleVersion,
 			"localCheckedCycleNUMBER":  localCheckedCycleNumber,
-			"currentCycle":             currentCycle,
+			"currentCycleNumber":       currentCycleNumber,
 		}).Debug("checkValidator no need check this cycle")
 		return nil
 	}
@@ -90,18 +97,16 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		return err
 	}
 	latestDealedCycle, err := task.stafihubClient.QueryLatestDealedCycle(denom, poolAddrStr)
-	if err != nil && !strings.Contains(err.Error(), "NotFound") {
+	if err != nil {
 		return err
 	}
-	if latestVotedCycle.LatestVotedCycle.Number != 0 {
-		if err != nil && strings.Contains(err.Error(), "NotFound") {
-			return nil
-		}
-
-		if !(latestVotedCycle.LatestVotedCycle.Version == latestDealedCycle.LatestDealedCycle.Version &&
-			latestVotedCycle.LatestVotedCycle.Number == latestDealedCycle.LatestDealedCycle.Number) {
-			return nil
-		}
+	if !(latestVotedCycle.LatestVotedCycle.Version == latestDealedCycle.LatestDealedCycle.Version &&
+		latestVotedCycle.LatestVotedCycle.Number == latestDealedCycle.LatestDealedCycle.Number) {
+		return nil
+	}
+	needShuffle := uint64(curTimestamp)-latestDealedCycle.LatestDealedCycle.Number*cycleInfoOnChain.Seconds > shuffleSecondsRes.ShuffleSeconds.Seconds
+	if shuffleSecondsRes.ShuffleSeconds.Seconds == 0 {
+		needShuffle = false
 	}
 
 	// return if rvalidators not equal to validators which were delegated on chain
@@ -156,11 +161,11 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 			return err
 		}
 		logrus.WithFields(logrus.Fields{
-			"currentCycle": currentCycle,
-			"valAddr":      validatorStr,
-			"slashAmount":  slashRes.Pagination.Total,
-			"fromHeight":   slashFromHeight,
-			"targetHeight": targetHeight,
+			"currentCycleNumber": currentCycleNumber,
+			"valAddr":            validatorStr,
+			"slashAmount":        slashRes.Pagination.Total,
+			"fromHeight":         slashFromHeight,
+			"targetHeight":       targetHeight,
 		}).Debug("validatorSlashInfo")
 
 		if slashRes.Pagination.Total > utils.MaxSlashAmount {
@@ -225,10 +230,37 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 			filteredNeedRmVal = append(filteredNeedRmVal, needRmVal)
 		}
 	}
-	needRmValidators = filteredNeedRmVal
-	if len(needRmValidators) == 0 {
-		logrus.Debug("needRmValidator is empty, no need redelegate")
-		task.setLocalCheckedCycle(denom, poolAddrStr, cycleInfoOnChain.Version, currentCycle)
+	logrus.WithFields(logrus.Fields{
+		"cycleVersion:":      cycleInfoOnChain.Version,
+		"currentCycleNumber": currentCycleNumber,
+		"denom":              denom,
+		"poolAddr":           poolAddrStr,
+		"filteredNeedRmVal":  filteredNeedRmVal,
+	}).Debug("filteredNeedRmVal")
+
+	filteredCanShuffleVal := make([]string, 0)
+	if needShuffle {
+		for _, mayBeCanShuffleVal := range rValidatorList.RValidatorList {
+			if !hasToRedelegation[mayBeCanShuffleVal] {
+				filteredCanShuffleVal = append(filteredCanShuffleVal, mayBeCanShuffleVal)
+			}
+		}
+	}
+	logrus.WithFields(logrus.Fields{
+		"cycleVersion:":         cycleInfoOnChain.Version,
+		"currentCycleNumber":    currentCycleNumber,
+		"denom":                 denom,
+		"poolAddr":              poolAddrStr,
+		"filteredCanShuffleVal": filteredCanShuffleVal,
+	}).Debug("filteredCanShuffleVal")
+
+	needRmOrShuffleValidators := filteredNeedRmVal
+	if len(needRmOrShuffleValidators) == 0 {
+		needRmOrShuffleValidators = filteredCanShuffleVal
+	}
+	if len(needRmOrShuffleValidators) == 0 {
+		logrus.Debug("needRmOrShuffleValidators is empty, no need redelegate")
+		task.setLocalCheckedCycle(denom, poolAddrStr, cycleInfoOnChain.Version, currentCycleNumber)
 		return nil
 	}
 
@@ -307,11 +339,13 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"oldVal":        needRmValidators[0],
-		"newVal":        willUseValidator[0],
-		"cycleVersion:": cycleInfoOnChain.Version,
-		"currentCycle":  currentCycle,
-		"denom":         denom,
+		"oldVal":             needRmValidators[0],
+		"newVal":             willUseValidator[0],
+		"cycleVersion:":      cycleInfoOnChain.Version,
+		"currentCycleNumber": currentCycleNumber,
+		"denom":              denom,
+		"poolAddr":           poolAddrStr,
+		"needShuffle":        needShuffle,
 	}).Info("will redelegate info")
 
 	// 3. we update one validator every cycle
@@ -328,14 +362,14 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		&stafiHubXRValidatorTypes.Cycle{
 			Denom:   denom,
 			Version: cycleInfoOnChain.Version,
-			Number:  currentCycle,
+			Number:  currentCycleNumber,
 		})
 
 	err = task.checkAndReSendWithProposalContent("NewUpdateRValidatorProposal", content)
 	if err != nil {
 		return err
 	}
-	task.setLocalCheckedCycle(denom, poolAddrStr, cycleInfoOnChain.Version, currentCycle)
+	task.setLocalCheckedCycle(denom, poolAddrStr, cycleInfoOnChain.Version, currentCycleNumber)
 
 	return nil
 }
