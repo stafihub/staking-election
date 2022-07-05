@@ -18,7 +18,7 @@ func UpOrInAnnualRate(db *db.WrapDb, c *AnnualRate) error {
 
 func GetAnnualRate(db *db.WrapDb, denom string) (info *AnnualRate, err error) {
 	info = &AnnualRate{}
-	err = db.Take(info, "denom = ?", denom).Error
+	err = db.Take(info, "rtoken_denom = ?", denom).Error
 	return
 }
 func GetAnnualRateList(db *db.WrapDb) (infos []*AnnualRate, err error) {

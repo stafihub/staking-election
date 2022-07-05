@@ -24,7 +24,7 @@ func InitRouters(db *db.WrapDb) http.Handler {
 
 	rateHandler := election_handlers.NewHandler(db)
 	router.GET("/stakingElection/api/v1/annualRateList", rateHandler.HandleGetAverageAnnualRate)
-	router.GET("/stakingElection/api/v1/selectedValidators", rateHandler.HandleGetAverageAnnualRate)
+	router.GET("/stakingElection/api/v1/selectedValidators", rateHandler.HandleGetSelectedValidators)
 
 	return router
 }

@@ -2,6 +2,7 @@ package election_handlers
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 	"github.com/stafihub/staking-election/dao/election"
 	"github.com/stafihub/staking-election/utils"
@@ -12,8 +13,8 @@ type RspAnnualRateList struct {
 }
 
 type AnnualRate struct {
-	RTokenDenom string `json:"rTokenDenom"`
-	AnnualRate  string `json:"annualRate"`
+	RTokenDenom string  `json:"rTokenDenom"`
+	AnnualRate  float64 `json:"annualRate"`
 }
 
 // @Summary get rate info
@@ -35,9 +36,16 @@ func (h *Handler) HandleGetAverageAnnualRate(c *gin.Context) {
 		AnnualRateList: make([]AnnualRate, len(annualRateList)),
 	}
 	for i, rate := range annualRateList {
+		dec, err := decimal.NewFromString(rate.AnnualRate)
+		if err != nil {
+			logrus.Error("dao_election.GetAnnualRateList err: %s", err)
+			utils.Err(c, codeInternalErr, err.Error())
+			return
+		}
+
 		rsp.AnnualRateList[i] = AnnualRate{
 			RTokenDenom: rate.RTokenDenom,
-			AnnualRate:  rate.AnnualRate,
+			AnnualRate:  dec.InexactFloat64(),
 		}
 	}
 

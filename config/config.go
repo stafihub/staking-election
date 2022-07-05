@@ -32,7 +32,7 @@ type Db struct {
 }
 type RTokenInfo struct {
 	Denom           string
-	MaxCommission   sdk.Dec
+	MaxCommission   Dec
 	MaxMissedBlocks int64
 	EndpointList    []string
 }
@@ -55,5 +55,20 @@ func loadSysConfig(path string, config *Config) error {
 		return err
 	}
 	fmt.Println("load config success")
+	return nil
+}
+
+type Dec struct {
+	sdk.Dec
+}
+
+func (d *Dec) UnmarshalTOML(v interface{}) error {
+
+	dec, err := sdk.NewDecFromStr(v.(string))
+	if err != nil {
+		return err
+	}
+
+	d.Dec = dec
 	return nil
 }

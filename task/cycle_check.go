@@ -182,7 +182,7 @@ func (task *Task) CheckValidator(cosmosClient *cosmosSdkClient.Client, denom, po
 		if !exist {
 			return fmt.Errorf("rtoken info of denom %s not exist", denom)
 		}
-		if validatorRes.Validator.Commission.Rate.GT(rtokenInfo.MaxCommission) {
+		if validatorRes.Validator.Commission.Rate.GT(rtokenInfo.MaxCommission.Dec) {
 			needRmValidators = append(needRmValidators, validatorStr)
 			continue
 		}

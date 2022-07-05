@@ -12,7 +12,10 @@ type RspSelectedValidators struct {
 }
 
 type SelectedValidator struct {
-	RTokenDenom      string `json:"rTokenDenom"`
+	RTokenDenom   string            `json:"rTokenDenom"`
+	ValidatorList []ValidatorDetail `json:"validatorList"`
+}
+type ValidatorDetail struct {
 	ValidatorAddress string `json:"validatorAddress"`
 	Moniker          string `json:"moniker"`
 	LogoUrl          string `json:"logo_url"`
@@ -33,16 +36,29 @@ func (h *Handler) HandleGetSelectedValidators(c *gin.Context) {
 		return
 	}
 
-	rsp := RspSelectedValidators{
-		SelectedValidators: make([]SelectedValidator, len(selectedValidators)),
+	selectedValMap := make(map[string][]*dao_election.SelectedValidator)
+	for _, val := range selectedValidators {
+		selectedValMap[val.RTokenDenom] = append(selectedValMap[val.RTokenDenom], val)
 	}
-	for i, val := range selectedValidators {
-		rsp.SelectedValidators[i] = SelectedValidator{
-			RTokenDenom:      val.RTokenDenom,
-			ValidatorAddress: val.ValidatorAddress,
-			Moniker:          val.Moniker,
-			LogoUrl:          "https://raw.githubusercontent.com/cosmostation/cosmostation_token_resource/master/moniker/cosmoshub/" + val.ValidatorAddress + ".png",
+
+	rsp := RspSelectedValidators{
+		SelectedValidators: make([]SelectedValidator, 0),
+	}
+
+	for key, vals := range selectedValMap {
+
+		valList := make([]ValidatorDetail, 0)
+		for _, val := range vals {
+			valList = append(valList, ValidatorDetail{
+				ValidatorAddress: val.ValidatorAddress,
+				Moniker:          val.Moniker,
+				LogoUrl:          "https://raw.githubusercontent.com/cosmostation/cosmostation_token_resource/master/moniker/cosmoshub/" + val.ValidatorAddress + ".png",
+			})
 		}
+		rsp.SelectedValidators = append(rsp.SelectedValidators, SelectedValidator{
+			RTokenDenom:   key,
+			ValidatorList: valList,
+		})
 	}
 
 	utils.Ok(c, "success", rsp)

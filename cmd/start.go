@@ -58,28 +58,29 @@ func startCmd() *cobra.Command {
 			//interrupt signal
 			ctx := utils.ShutdownListener()
 
-			fmt.Printf("Will open stafihub wallet from <%s>. \nPlease ", conf.KeystorePath)
-			key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, conf.KeystorePath, os.Stdin)
-			if err != nil {
-				return err
-			}
-			client, err := stafihubClient.NewClient(key, conf.ElectorAccount, conf.GasPrice, conf.StafiHubEndpointList)
-			if err != nil {
-				return fmt.Errorf("hubClient.NewClient err: %s", err)
-			}
+			if !conf.EnableApi {
 
-			t := task.NewTask(conf, client)
-			err = t.Start()
-			if err != nil {
-				logrus.Errorf("task start err: %s", err)
-				return err
-			}
-			defer func() {
-				logrus.Infof("shutting down task ...")
-				t.Stop()
-			}()
+				fmt.Printf("Will open stafihub wallet from <%s>. \nPlease ", conf.KeystorePath)
+				key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, conf.KeystorePath, os.Stdin)
+				if err != nil {
+					return err
+				}
+				client, err := stafihubClient.NewClient(key, conf.ElectorAccount, conf.GasPrice, conf.StafiHubEndpointList)
+				if err != nil {
+					return fmt.Errorf("hubClient.NewClient err: %s", err)
+				}
 
-			if conf.EnableApi {
+				t := task.NewTask(conf, client)
+				err = t.Start()
+				if err != nil {
+					logrus.Errorf("task start err: %s", err)
+					return err
+				}
+				defer func() {
+					logrus.Infof("shutting down task ...")
+					t.Stop()
+				}()
+			} else {
 				//init db
 				db, err := db.NewDB(&db.Config{
 					Host:   conf.Db.Host,
@@ -108,6 +109,10 @@ func startCmd() *cobra.Command {
 				if err != nil {
 					logrus.Errorf("dao autoMigrate err: %s", err)
 					return err
+				}
+				client, err := stafihubClient.NewClient(nil, "", "", conf.StafiHubEndpointList)
+				if err != nil {
+					return fmt.Errorf("hubClient.NewClient err: %s", err)
 				}
 				//server
 				server, err := server.NewServer(conf, client, db)

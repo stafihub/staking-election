@@ -3,7 +3,7 @@ enableApi = true
 gasPrice = "0.05ufis"
 keystorePath = "./keys/stafihub"
 listenAddr = ":8083"
-stafiHubEndpointList = ["http://localhost:26657"]
+stafiHubEndpointList = ["https://test-rpc1.stafihub.io:443"]
 
 [db]
 host = "127.0.0.1" # mysql host ip
@@ -14,6 +14,6 @@ user = "root" # mysql username
 
 [[rTokenInfo]]
 denom = "uratom"
-endpointList = ["https://cosmos-rpc1.stafi.io:443"]
+endpointList = ["https://test-cosmos-rpc1.stafihub.io:443"]
 maxCommission = "0.1"
 maxMissedBlocks = 100

@@ -20,7 +20,7 @@ func UpOrInSelectedValidator(db *db.WrapDb, c *SelectedValidator) error {
 
 func GetSelectedValidator(db *db.WrapDb, denom, poolAddress, validatorAddress string) (info *SelectedValidator, err error) {
 	info = &SelectedValidator{}
-	err = db.Take(info, "denom = ? and pool_address = ? and validator_address = ?", denom, poolAddress, validatorAddress).Error
+	err = db.Take(info, "rtoken_denom = ? and pool_address = ? and validator_address = ?", denom, poolAddress, validatorAddress).Error
 	return
 }
 
@@ -30,5 +30,5 @@ func GetAllSelectedValidators(db *db.WrapDb) (infos []*SelectedValidator, err er
 }
 
 func DeleteSelectedValidator(db *db.WrapDb, denom, poolAddress, validatorAddress string) error {
-	return db.Delete(&SelectedValidator{}, "denom = ? and pool_address = ? and validator_address = ?", denom, poolAddress, validatorAddress).Error
+	return db.Delete(&SelectedValidator{}, "rtoken_denom = ? and pool_address = ? and validator_address = ?", denom, poolAddress, validatorAddress).Error
 }
