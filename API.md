@@ -79,4 +79,4 @@
 |         |                    | validatorList | N/A              | list   | Yes         | null        | validator list        |
 |         |                    |               | validatorAddress | string | Yes         | null        | validator address     |
 |         |                    |               | moniker          | string | Yes         | null        | moniker               |
-|         |                    |               | logo_url         | string | Yes         | null        | logo url              |
+|         |                    |               | logoUrl          | string | Yes         | null        | logo url              |

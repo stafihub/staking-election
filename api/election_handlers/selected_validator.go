@@ -18,7 +18,7 @@ type SelectedValidator struct {
 type ValidatorDetail struct {
 	ValidatorAddress string `json:"validatorAddress"`
 	Moniker          string `json:"moniker"`
-	LogoUrl          string `json:"logo_url"`
+	LogoUrl          string `json:"logoUrl"`
 }
 
 // @Summary get selected validators
