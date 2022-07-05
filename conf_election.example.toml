@@ -1,0 +1,10 @@
+electorAccount = "relay1"
+gasPrice = "0.05ufis"
+keystorePath = "./keys/stafihub"
+stafiHubEndpointList = ["https://test-rpc1.stafihub.io:443"]
+
+[[rTokenInfo]]
+denom = "uratom"
+endpointList = ["https://test-cosmos-rpc1.stafihub.io:443"]
+maxCommission = "0.1"
+maxMissedBlocks = 100

@@ -17,7 +17,6 @@ type Config struct {
 	StafiHubEndpointList []string
 	GasPrice             string
 	ListenAddr           string
-	EnableApi            bool
 	RTokenInfo           []RTokenInfo
 
 	Db Db
@@ -32,8 +31,8 @@ type Db struct {
 }
 type RTokenInfo struct {
 	Denom           string
-	MaxCommission   Dec
-	MaxMissedBlocks int64
+	MaxCommission   *Dec  `toml:",omitempty"`
+	MaxMissedBlocks int64 `toml:",omitempty"`
 	EndpointList    []string
 }
 
@@ -63,7 +62,10 @@ type Dec struct {
 }
 
 func (d *Dec) UnmarshalTOML(v interface{}) error {
-
+	if v == nil {
+		d = nil
+		return nil
+	}
 	dec, err := sdk.NewDecFromStr(v.(string))
 	if err != nil {
 		return err

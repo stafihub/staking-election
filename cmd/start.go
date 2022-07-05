@@ -25,11 +25,11 @@ const (
 
 var defaultConfigPath = os.ExpandEnv("./config.toml")
 
-func startCmd() *cobra.Command {
+func startElectionCmd() *cobra.Command {
 	log.InitConsole()
 
 	cmd := &cobra.Command{
-		Use:     "start",
+		Use:     "start-election",
 		Aliases: []string{"v"},
 		Short:   "Start staking-election procedure",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -52,85 +52,124 @@ func startCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("\nconfig info: \nelectorAccount: %s\nenableApi: %v\ngasPrice: %s\nkeystorePath: %s\nlistenAddr: %s\nrTokenInfo: %+v\nstafihubEndpointList: %v\n\n",
-				conf.ElectorAccount, conf.EnableApi, conf.GasPrice, conf.KeystorePath, conf.ListenAddr, conf.RTokenInfo, conf.StafiHubEndpointList)
+			fmt.Printf("\nconfig info: \nelectorAccount: %s\ngasPrice: %s\nkeystorePath: %s\nrTokenInfo: %+v\nstafihubEndpointList: %v\n\n",
+				conf.ElectorAccount, conf.GasPrice, conf.KeystorePath, conf.RTokenInfo, conf.StafiHubEndpointList)
 
 			//interrupt signal
 			ctx := utils.ShutdownListener()
 
-			if !conf.EnableApi {
-
-				fmt.Printf("Will open stafihub wallet from <%s>. \nPlease ", conf.KeystorePath)
-				key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, conf.KeystorePath, os.Stdin)
-				if err != nil {
-					return err
-				}
-				client, err := stafihubClient.NewClient(key, conf.ElectorAccount, conf.GasPrice, conf.StafiHubEndpointList)
-				if err != nil {
-					return fmt.Errorf("hubClient.NewClient err: %s", err)
-				}
-
-				t := task.NewTask(conf, client)
-				err = t.Start()
-				if err != nil {
-					logrus.Errorf("task start err: %s", err)
-					return err
-				}
-				defer func() {
-					logrus.Infof("shutting down task ...")
-					t.Stop()
-				}()
-			} else {
-				//init db
-				db, err := db.NewDB(&db.Config{
-					Host:   conf.Db.Host,
-					Port:   conf.Db.Port,
-					User:   conf.Db.User,
-					Pass:   conf.Db.Pwd,
-					DBName: conf.Db.Name,
-				})
-				if err != nil {
-					logrus.Errorf("db err: %s", err)
-					return err
-				}
-				logrus.Infof("db connect success")
-
-				defer func() {
-					sqlDb, err := db.DB.DB()
-					if err != nil {
-						logrus.Errorf("db.DB() err: %s", err)
-						return
-					}
-					logrus.Infof("shutting down the db ...")
-					sqlDb.Close()
-				}()
-
-				err = migrate.AutoMigrate(db)
-				if err != nil {
-					logrus.Errorf("dao autoMigrate err: %s", err)
-					return err
-				}
-				client, err := stafihubClient.NewClient(nil, "", "", conf.StafiHubEndpointList)
-				if err != nil {
-					return fmt.Errorf("hubClient.NewClient err: %s", err)
-				}
-				//server
-				server, err := server.NewServer(conf, client, db)
-				if err != nil {
-					logrus.Errorf("new server err: %s", err)
-					return err
-				}
-				err = server.Start()
-				if err != nil {
-					logrus.Errorf("server start err: %s", err)
-					return err
-				}
-				defer func() {
-					logrus.Infof("shutting down server ...")
-					server.Stop()
-				}()
-
+			fmt.Printf("Will open stafihub wallet from <%s>. \nPlease ", conf.KeystorePath)
+			key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, conf.KeystorePath, os.Stdin)
+			if err != nil {
+				return err
 			}
+			client, err := stafihubClient.NewClient(key, conf.ElectorAccount, conf.GasPrice, conf.StafiHubEndpointList)
+			if err != nil {
+				return fmt.Errorf("hubClient.NewClient err: %s", err)
+			}
+
+			t := task.NewTask(conf, client)
+			err = t.Start()
+			if err != nil {
+				logrus.Errorf("task start err: %s", err)
+				return err
+			}
+			defer func() {
+				logrus.Infof("shutting down task ...")
+				t.Stop()
+			}()
+			<-ctx.Done()
+			return nil
+		},
+	}
+
+	cmd.Flags().String(flagConfig, defaultConfigPath, "Config file path")
+	cmd.Flags().String(flagLogLevel, logrus.InfoLevel.String(), "The logging level (trace|debug|info|warn|error|fatal|panic)")
+
+	return cmd
+}
+
+func startApiCmd() *cobra.Command {
+	log.InitConsole()
+
+	cmd := &cobra.Command{
+		Use:     "start-api",
+		Aliases: []string{"v"},
+		Short:   "Start api server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			configPath, err := cmd.Flags().GetString(flagConfig)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("config path: %s\n", configPath)
+			logLevelStr, err := cmd.Flags().GetString(flagLogLevel)
+			if err != nil {
+				return err
+			}
+			logLevel, err := logrus.ParseLevel(logLevelStr)
+			if err != nil {
+				return err
+			}
+			logrus.SetLevel(logLevel)
+
+			conf, err := config.Load(configPath)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("\nconfig info: \nlistenAddr: %s\nrTokenInfo: %+v\nstafihubEndpointList: %v\n\n",
+				conf.ListenAddr, conf.RTokenInfo, conf.StafiHubEndpointList)
+
+			//interrupt signal
+			ctx := utils.ShutdownListener()
+
+			//init db
+			db, err := db.NewDB(&db.Config{
+				Host:   conf.Db.Host,
+				Port:   conf.Db.Port,
+				User:   conf.Db.User,
+				Pass:   conf.Db.Pwd,
+				DBName: conf.Db.Name,
+			})
+			if err != nil {
+				logrus.Errorf("db err: %s", err)
+				return err
+			}
+			logrus.Infof("db connect success")
+
+			defer func() {
+				sqlDb, err := db.DB.DB()
+				if err != nil {
+					logrus.Errorf("db.DB() err: %s", err)
+					return
+				}
+				logrus.Infof("shutting down the db ...")
+				sqlDb.Close()
+			}()
+
+			err = migrate.AutoMigrate(db)
+			if err != nil {
+				logrus.Errorf("dao autoMigrate err: %s", err)
+				return err
+			}
+			client, err := stafihubClient.NewClient(nil, "", "", conf.StafiHubEndpointList)
+			if err != nil {
+				return fmt.Errorf("hubClient.NewClient err: %s", err)
+			}
+			//server
+			server, err := server.NewServer(conf, client, db)
+			if err != nil {
+				logrus.Errorf("new server err: %s", err)
+				return err
+			}
+			err = server.Start()
+			if err != nil {
+				logrus.Errorf("server start err: %s", err)
+				return err
+			}
+			defer func() {
+				logrus.Infof("shutting down server ...")
+				server.Stop()
+			}()
 
 			<-ctx.Done()
 			return nil
