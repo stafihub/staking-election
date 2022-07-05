@@ -4,12 +4,17 @@ import (
 	"net/http"
 	"time"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sirupsen/logrus"
 	cosmosClient "github.com/stafihub/cosmos-relay-sdk/client"
+	"github.com/stafihub/rtoken-relay-core/common/core"
 	stafihubClient "github.com/stafihub/stafi-hub-relay-sdk/client"
 	"github.com/stafihub/staking-election/api"
 	"github.com/stafihub/staking-election/config"
+	"github.com/stafihub/staking-election/dao/election"
+	"github.com/stafihub/staking-election/db"
 	"github.com/stafihub/staking-election/utils"
+	"gorm.io/gorm"
 )
 
 type Server struct {
@@ -17,23 +22,21 @@ type Server struct {
 	httpServer      *http.Server
 	stop            chan struct{}
 	cfg             *config.Config
-	cache           *utils.WrapMap
+	db              *db.WrapDb
 	cosmosClientMap map[string]*cosmosClient.Client
 	stafihubClient  *stafihubClient.Client
 }
 
-func NewServer(cfg *config.Config, stafihubClient *stafihubClient.Client) (*Server, error) {
+func NewServer(cfg *config.Config, stafihubClient *stafihubClient.Client, db *db.WrapDb) (*Server, error) {
 	s := &Server{
-		listenAddr: cfg.ListenAddr,
-		cfg:        cfg,
-		stop:       make(chan struct{}),
-		cache: &utils.WrapMap{
-			Cache: make(map[string]string),
-		},
+		listenAddr:     cfg.ListenAddr,
+		cfg:            cfg,
+		stop:           make(chan struct{}),
 		stafihubClient: stafihubClient,
+		db:             db,
 	}
 
-	handler := s.InitHandler(s.cache)
+	handler := s.InitHandler(s.db)
 
 	s.httpServer = &http.Server{
 		Addr:         s.listenAddr,
@@ -45,8 +48,8 @@ func NewServer(cfg *config.Config, stafihubClient *stafihubClient.Client) (*Serv
 	return s, nil
 }
 
-func (svr *Server) InitHandler(cache *utils.WrapMap) http.Handler {
-	return api.InitRouters(cache)
+func (svr *Server) InitHandler(db *db.WrapDb) http.Handler {
+	return api.InitRouters(db)
 }
 
 func (svr *Server) ApiServer() {
@@ -62,6 +65,7 @@ func (svr *Server) ApiServer() {
 
 func (svr *Server) Start() error {
 	svr.cosmosClientMap = make(map[string]*cosmosClient.Client)
+	// init client and selected validators
 	for _, rtokenInfo := range svr.cfg.RTokenInfo {
 		addressPrefixRes, err := svr.stafihubClient.QueryAddressPrefix(rtokenInfo.Denom)
 		if err != nil {
@@ -72,7 +76,57 @@ func (svr *Server) Start() error {
 			return err
 		}
 		svr.cosmosClientMap[rtokenInfo.Denom] = client
+
+		bondedPoolsRes, err := svr.stafihubClient.QueryPools(rtokenInfo.Denom)
+		if err != nil {
+			return err
+		}
+
+		for _, poolAddrStr := range bondedPoolsRes.Addrs {
+			done := core.UseSdkConfigContext(client.GetAccountPrefix())
+			poolAddr, err := sdk.AccAddressFromBech32(poolAddrStr)
+			if err != nil {
+				done()
+				return err
+			}
+			done()
+
+			delegationsRes, err := client.QueryDelegations(poolAddr, 0)
+			if err != nil {
+				return err
+			}
+
+			for _, delegation := range delegationsRes.DelegationResponses {
+				valAddress := delegation.Delegation.ValidatorAddress
+				_, err := dao_election.GetSelectedValidator(svr.db, rtokenInfo.Denom, poolAddrStr, valAddress)
+				if err != nil {
+					if err != gorm.ErrRecordNotFound {
+						return err
+					} else {
+						valRes, err := client.QueryValidator(valAddress, 0)
+						if err != nil {
+							return err
+						}
+
+						selectedValidator := &dao_election.SelectedValidator{
+							RTokenDenom:      rtokenInfo.Denom,
+							PoolAddress:      poolAddrStr,
+							ValidatorAddress: valAddress,
+							Moniker:          valRes.Validator.GetMoniker(),
+						}
+
+						err = dao_election.UpOrInSelectedValidator(svr.db, selectedValidator)
+						if err != nil {
+							return err
+						}
+					}
+				}
+
+			}
+		}
 	}
+
+	// init annual rate
 	for denom, client := range svr.cosmosClientMap {
 		height, err := client.GetCurrentBlockHeight()
 		if err != nil {
@@ -82,10 +136,18 @@ func (svr *Server) Start() error {
 		if err != nil {
 			return err
 		}
+		annualRate, err := dao_election.GetAnnualRate(svr.db, denom)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			return err
+		}
 
-		svr.cache.CacheMutex.Lock()
-		svr.cache.Cache[denom] = rate.String()
-		svr.cache.CacheMutex.Unlock()
+		annualRate.RTokenDenom = denom
+		annualRate.AnnualRate = rate.String()
+
+		err = dao_election.UpOrInAnnualRate(svr.db, annualRate)
+		if err != nil {
+			return err
+		}
 	}
 
 	utils.SafeGoWithRestart(svr.ApiServer)
@@ -114,22 +176,105 @@ func (s *Server) AverageAnnualRateHandler() {
 			return
 		case <-ticker.C:
 			logrus.Debugf("AverageAnnualRateHandler start -----------")
-			for denom, client := range s.cosmosClientMap {
-				height, err := client.GetCurrentBlockHeight()
-				if err != nil {
-					continue
-				}
-				rate, err := utils.GetAverageAnnualRate(client, height, nil)
-				if err != nil {
-					continue
-				}
-
-				s.cache.CacheMutex.Lock()
-				s.cache.Cache[denom] = rate.String()
-				s.cache.CacheMutex.Unlock()
-				logrus.Debugf("got average rate: %s", rate.String())
+			err := s.updateAnnualRate()
+			if err != nil {
+				logrus.Warnf("updateAnnualRate err: %s", err)
+				continue
 			}
 			logrus.Debugf("AverageAnnualRateHandler end -----------")
+
+			logrus.Debugf("updateSelectedValidator start -----------")
+			err = s.updateSelectedValidator()
+			if err != nil {
+				logrus.Warnf("updateSelectedValidator err: %s", err)
+				continue
+			}
+			logrus.Debugf("updateSelectedValidator end -----------")
 		}
 	}
+}
+
+func (svr *Server) updateAnnualRate() error {
+	for denom, client := range svr.cosmosClientMap {
+		height, err := client.GetCurrentBlockHeight()
+		if err != nil {
+			return err
+		}
+		rate, err := utils.GetAverageAnnualRate(client, height, nil)
+		if err != nil {
+			return err
+		}
+
+		annualRate, err := dao_election.GetAnnualRate(svr.db, denom)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			return err
+		}
+
+		annualRate.RTokenDenom = denom
+		annualRate.AnnualRate = rate.String()
+
+		err = dao_election.UpOrInAnnualRate(svr.db, annualRate)
+		if err != nil {
+			return err
+		}
+
+		logrus.Debugf("got average rate: %s", rate.String())
+	}
+	return nil
+}
+
+func (svr *Server) updateSelectedValidator() error {
+	for _, rtokenInfo := range svr.cfg.RTokenInfo {
+
+		client := svr.cosmosClientMap[rtokenInfo.Denom]
+
+		bondedPoolsRes, err := svr.stafihubClient.QueryPools(rtokenInfo.Denom)
+		if err != nil {
+			return err
+		}
+
+		for _, poolAddrStr := range bondedPoolsRes.Addrs {
+			done := core.UseSdkConfigContext(client.GetAccountPrefix())
+			poolAddr, err := sdk.AccAddressFromBech32(poolAddrStr)
+			if err != nil {
+				done()
+				return err
+			}
+			done()
+
+			delegationsRes, err := client.QueryDelegations(poolAddr, 0)
+			if err != nil {
+				return err
+			}
+
+			for _, delegation := range delegationsRes.DelegationResponses {
+				valAddress := delegation.Delegation.ValidatorAddress
+				_, err := dao_election.GetSelectedValidator(svr.db, rtokenInfo.Denom, poolAddrStr, valAddress)
+				if err != nil {
+					if err != gorm.ErrRecordNotFound {
+						return err
+					} else {
+						valRes, err := client.QueryValidator(valAddress, 0)
+						if err != nil {
+							return err
+						}
+
+						selectedValidator := &dao_election.SelectedValidator{
+							RTokenDenom:      rtokenInfo.Denom,
+							PoolAddress:      poolAddrStr,
+							ValidatorAddress: valAddress,
+							Moniker:          valRes.Validator.GetMoniker(),
+						}
+
+						err = dao_election.UpOrInSelectedValidator(svr.db, selectedValidator)
+						if err != nil {
+							return err
+						}
+					}
+				}
+
+			}
+		}
+	}
+	return nil
 }

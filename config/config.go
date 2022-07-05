@@ -19,8 +19,17 @@ type Config struct {
 	ListenAddr           string
 	EnableApi            bool
 	RTokenInfo           []RTokenInfo
+
+	Db Db
 }
 
+type Db struct {
+	Host string
+	Port string
+	User string
+	Pwd  string
+	Name string
+}
 type RTokenInfo struct {
 	Denom           string
 	MaxCommission   sdk.Dec

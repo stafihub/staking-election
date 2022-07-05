@@ -1,16 +1,18 @@
 // Copyright 2021 stafiprotocol
 // SPDX-License-Identifier: LGPL-3.0-only
 
-package rate_handlers
+package election_handlers
 
-import "github.com/stafihub/staking-election/utils"
+import (
+	"github.com/stafihub/staking-election/db"
+)
 
 type Handler struct {
-	cache *utils.WrapMap
+	db *db.WrapDb
 }
 
-func NewHandler(cache *utils.WrapMap) *Handler {
-	return &Handler{cache: cache}
+func NewHandler(db *db.WrapDb) *Handler {
+	return &Handler{db: db}
 }
 
 const (

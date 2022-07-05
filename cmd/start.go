@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 	stafihubClient "github.com/stafihub/stafi-hub-relay-sdk/client"
 	"github.com/stafihub/staking-election/config"
+	"github.com/stafihub/staking-election/dao/migrate"
+	"github.com/stafihub/staking-election/db"
 	"github.com/stafihub/staking-election/log"
 	"github.com/stafihub/staking-election/server"
 	"github.com/stafihub/staking-election/task"
@@ -78,8 +80,37 @@ func startCmd() *cobra.Command {
 			}()
 
 			if conf.EnableApi {
+				//init db
+				db, err := db.NewDB(&db.Config{
+					Host:   conf.Db.Host,
+					Port:   conf.Db.Port,
+					User:   conf.Db.User,
+					Pass:   conf.Db.Pwd,
+					DBName: conf.Db.Name,
+				})
+				if err != nil {
+					logrus.Errorf("db err: %s", err)
+					return err
+				}
+				logrus.Infof("db connect success")
+
+				defer func() {
+					sqlDb, err := db.DB.DB()
+					if err != nil {
+						logrus.Errorf("db.DB() err: %s", err)
+						return
+					}
+					logrus.Infof("shutting down the db ...")
+					sqlDb.Close()
+				}()
+
+				err = migrate.AutoMigrate(db)
+				if err != nil {
+					logrus.Errorf("dao autoMigrate err: %s", err)
+					return err
+				}
 				//server
-				server, err := server.NewServer(conf, client)
+				server, err := server.NewServer(conf, client, db)
 				if err != nil {
 					logrus.Errorf("new server err: %s", err)
 					return err
