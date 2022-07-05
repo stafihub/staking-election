@@ -1,9 +1,9 @@
-electorAccount = "relay1"
-enableApi = true
-gasPrice = "0.05ufis"
-keystorePath = "./keys/stafihub"
-listenAddr = ":8083"
-stafiHubEndpointList = ["https://test-rpc1.stafihub.io:443"]
+electorAccount = "relay1" 
+enableApi = true # will only start api server if true
+gasPrice = "0.05ufis" 
+keystorePath = "./keys/stafihub" 
+listenAddr = ":8083" 
+stafiHubEndpointList = ["https://test-rpc1.stafihub.io:443"] 
 
 [db]
 host = "127.0.0.1" # mysql host ip
