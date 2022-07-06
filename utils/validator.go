@@ -10,8 +10,7 @@ import (
 )
 
 var (
-	averageBlockTIme     = sdk.MustNewDecFromStr("6.77")
-	stepNumber, stepSize = 8, 1000
+	stepNumber, stepSize = 8, 10000
 	MaxSlashAmount       = uint64(0)
 	SlashDuBlock         = int64(10000)
 )
@@ -149,16 +148,41 @@ func GetValidatorAnnualRateOnHeight(c *cosmosClient.Client, height int64) (map[s
 			sharedToken := rewardTokenAmount.Sub(commission)
 
 			rewardPerShare := sharedToken.Quo(willUseVal.ShareAmount)
-			annualRate := rewardPerShare.Mul(sdk.NewDec(365 * 24 * 60 * 60)).Quo(averageBlockTIme)
+			averageBlockTime, err := GetAverageBlockTime(c, height)
+			if err != nil {
+				return nil, err
+			}
+			annualRate := rewardPerShare.Mul(sdk.NewDec(365 * 24 * 60 * 60)).Quo(averageBlockTime)
 
 			willUseVal.RewardAmount = rewardTokenAmount
 			willUseVal.AnnualRate = annualRate
-
 			vals[willUseVal.OperatorAddress] = &willUseVal
 		}
 	}
 
 	return vals, nil
+}
+
+func GetAverageBlockTime(c *cosmosClient.Client, height int64) (sdk.Dec, error) {
+	if height <= 1 {
+		return sdk.ZeroDec(), fmt.Errorf("height must bigger than 1")
+	}
+	startBlock, err := c.QueryBlock(height)
+	if err != nil {
+		return sdk.ZeroDec(), err
+	}
+
+	preHeight := height - int64(stepSize)
+	if preHeight <= 0 {
+		preHeight = 1
+	}
+
+	preBlock, err := c.QueryBlock(preHeight)
+	if err != nil {
+		return sdk.ZeroDec(), err
+	}
+
+	return sdk.NewDec(startBlock.Block.Time.Unix()).Sub(sdk.NewDec(preBlock.Block.Time.Unix())).Quo(sdk.NewDec(height - preHeight)), nil
 }
 
 type Validator struct {
