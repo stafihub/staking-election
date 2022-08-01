@@ -20,7 +20,7 @@ import (
 
 const (
 	flagConfig   = "config"
-	flagLogLevel = "log-level"
+	flagLogLevel = "log_level"
 )
 
 var defaultConfigPath = os.ExpandEnv("./config.toml")

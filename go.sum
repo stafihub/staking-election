@@ -942,6 +942,8 @@ github.com/spf13/viper v1.12.0 h1:CZ7eSOd3kZoaYDLbXnmzgQI5RlciuXBMA+18HwHRfZQ=
 github.com/spf13/viper v1.12.0/go.mod h1:b6COn30jlNxbm/V2IqWiNWkJ+vZNiMNksliPCiuKtSI=
 github.com/stafihub/cosmos-relay-sdk v1.5.2 h1:im4LDot8VhahIawrxIrTsO+ovulvHVWx3/o17IhdSdI=
 github.com/stafihub/cosmos-relay-sdk v1.5.2/go.mod h1:XVnTUo1U6g6D4Y6cqhIahCpKSn9qTPtqLUSV+cbrfSE=
+github.com/stafihub/cosmos-sdk v0.45.6-stafihub-0.0.3 h1:Q80ilFAwYaiw/sTAC5ZLfMMpsbnguS8E/qv9AdzFpwk=
+github.com/stafihub/cosmos-sdk v0.45.6-stafihub-0.0.3/go.mod h1:bPeeVMEtVvH3y3xAGHVbK+/CZlpaazzh77hG8ZrcJpI=
 github.com/stafihub/rtoken-relay-core/common v0.0.0-20220623080304-9dbf91f335c2 h1:mxZqBF7SXYoWy8G6VCrLfdMNUbXDsZnUzePYknWvVGY=
 github.com/stafihub/rtoken-relay-core/common v0.0.0-20220623080304-9dbf91f335c2/go.mod h1:GCL9oq5KV6srReFwMqsrQaCk8BfkCfKqWjJT9IY0xnY=
 github.com/stafihub/stafi-hub-relay-sdk v1.3.2 h1:tFZeQCOEp1JD7Xi54UuhfIFZcBoKBnnLXewwa22btHU=
@@ -1000,8 +1002,6 @@ github.com/tendermint/tm-db v0.6.7/go.mod h1:byQDzFkZV1syXr/ReXS808NxA2xvyuuVgXO
 github.com/tinylib/msgp v1.1.5/go.mod h1:eQsjooMTnV42mHu917E26IogZ2930nFyBQdofk10Udg=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20170815181823-89b8d40f7ca8/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
 github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5/go.mod h1:ncp9v5uamzpCO7NfCPTXjqaC+bZgJeR0sMTm6dMHP7U=
-github.com/tpkeeper/cosmos-sdk v0.45.4-stafihub-0.0.1 h1:Kb2omaihqEx+Sk6qDbN3YMFFQxE6oJaZMsh+NmP7oH0=
-github.com/tpkeeper/cosmos-sdk v0.45.4-stafihub-0.0.1/go.mod h1:WOqtDxN3eCCmnYLVla10xG7lEXkFjpTaqm2a2WasgCc=
 github.com/ttacon/chalk v0.0.0-20160626202418-22c06c80ed31/go.mod h1:onvgF043R+lC5RZ8IT9rBXDaEDnpnw/Cl+HFiw+v/7Q=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/tv42/httpunix v0.0.0-20191220191345-2ba4b9c3382c/go.mod h1:hzIxponao9Kjc7aWznkXaL4U4TWaDSs8zcsY4Ka08nM=
