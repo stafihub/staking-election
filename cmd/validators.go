@@ -26,14 +26,17 @@ func selectValidatorsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			fmt.Println("node rpc: ", node)
 			prefix, err := cmd.Flags().GetString(flagPrefix)
 			if err != nil {
 				return err
 			}
+			fmt.Println("prefix: ", prefix)
 			number, err := cmd.Flags().GetInt64(flagNumber)
 			if err != nil {
 				return err
 			}
+			fmt.Println("number: ", number)
 			maxMissedBlocks, err := cmd.Flags().GetInt64(flagMaxMissedBlocks)
 			if err != nil {
 				return err
@@ -48,16 +51,20 @@ func selectValidatorsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			fmt.Println("currentBlockHeight: ", curBLockHeight)
 
+			fmt.Println("wait to get allValidator...")
 			allValidator, err := utils.GetValidatorAnnualRate(c, curBLockHeight)
 			if err != nil {
 				return err
 			}
 
+			fmt.Println("wait to get averageAnnualRate...")
 			averageAnnualRate, err := utils.GetAverageAnnualRate(c, curBLockHeight, allValidator)
 			if err != nil {
 				return err
 			}
+			fmt.Println("wait to get selectedValidator...")
 			valSlice, err := utils.GetSelectedValidator(c, curBLockHeight, number, allValidator)
 			if err != nil {
 				return err
@@ -76,6 +83,7 @@ func selectValidatorsCmd() *cobra.Command {
 				}
 				// (0). should remove slashed validators
 				if slashRes.Pagination.Total > utils.MaxSlashAmount {
+					fmt.Printf("slash total: %d, will skip \n", slashRes.Pagination.Total)
 					continue
 				}
 
@@ -105,6 +113,7 @@ func selectValidatorsCmd() *cobra.Command {
 					return err
 				}
 				if validatorRes.Validator.Jailed || signInfo.ValSigningInfo.Tombstoned || signInfo.ValSigningInfo.MissedBlocksCounter > maxMissedBlocks {
+					fmt.Printf("validator jailed %v, tombstoned %v, missed %d, will skip \n", validatorRes.Validator.Jailed, signInfo.ValSigningInfo.Tombstoned, signInfo.ValSigningInfo.MissedBlocksCounter)
 					continue
 				}
 

@@ -13,6 +13,7 @@ var (
 	stepNumber, stepSize = 8, 10000
 	MaxSlashAmount       = uint64(0)
 	SlashDuBlock         = int64(10000)
+	averageBlockTime     = sdk.ZeroDec()
 )
 
 func GetAverageAnnualRate(c *cosmosClient.Client, height int64, valMap map[string]*Validator) (sdk.Dec, error) {
@@ -59,9 +60,9 @@ func GetSelectedValidator(c *cosmosClient.Client, height, number int64, valMap m
 		})
 		return valSlice, nil
 	}
-	// rm 5% + 10%
+	// rm 5% + 33%
 	remainStart := initialLen / 20
-	remainEnd := initialLen - initialLen/10
+	remainEnd := initialLen - initialLen/3
 	if remainStart >= remainEnd || remainEnd-remainStart < int(number) {
 		sort.Slice(valSlice, func(i, j int) bool {
 			return valSlice[i].AnnualRate.GT(valSlice[j].AnnualRate)
@@ -148,9 +149,11 @@ func GetValidatorAnnualRateOnHeight(c *cosmosClient.Client, height int64) (map[s
 			sharedToken := rewardTokenAmount.Sub(commission)
 
 			rewardPerShare := sharedToken.Quo(willUseVal.ShareAmount)
-			averageBlockTime, err := GetAverageBlockTime(c, height)
-			if err != nil {
-				return nil, err
+			if averageBlockTime.IsZero() {
+				averageBlockTime, err = GetAverageBlockTime(c, height)
+				if err != nil {
+					return nil, err
+				}
 			}
 			annualRate := rewardPerShare.Mul(sdk.NewDec(365 * 24 * 60 * 60)).Quo(averageBlockTime)
 
