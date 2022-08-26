@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-//wrap for *gorm.DB
+// wrap for *gorm.DB
 type WrapDb struct {
 	*gorm.DB
 	isTx bool
@@ -21,14 +21,14 @@ func NewWrapDb(db *gorm.DB) *WrapDb {
 	}
 }
 
-//transaction begin，must call rollback or commitTransaction after call this
+// transaction begin，must call rollback or commitTransaction after call this
 func (d *WrapDb) NewTransaction() *WrapDb {
 	txDao := NewWrapDb(d.Begin())
 	txDao.isTx = true
 	return txDao
 }
 
-//Only for transactional dao calls
+// Only for transactional dao calls
 func (d *WrapDb) RollbackTransaction() error {
 	if d.isTx {
 		return d.Rollback().Error
@@ -36,7 +36,7 @@ func (d *WrapDb) RollbackTransaction() error {
 	return fmt.Errorf("is not transaction tx")
 }
 
-//Only for transactional dao calls
+// Only for transactional dao calls
 func (d *WrapDb) CommitTransaction() error {
 	if d.isTx {
 		return d.Commit().Error

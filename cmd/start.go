@@ -31,6 +31,7 @@ func startElectionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "start-election",
 		Aliases: []string{"v"},
+		Args:    cobra.ExactArgs(0),
 		Short:   "Start staking-election procedure",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configPath, err := cmd.Flags().GetString(flagConfig)

@@ -21,7 +21,7 @@ type Config struct {
 	Host, Port, User, Pass, DBName, Mode string
 }
 
-//don't use soft delete
+// don't use soft delete
 type BaseModel struct {
 	ID        int64 `gorm:"not null;primaryKey;autoIncrement;column:id"`
 	CreatedAt int   `gorm:"type:int(11);autoCreateTime;unsigned;not null;column:create_time"`

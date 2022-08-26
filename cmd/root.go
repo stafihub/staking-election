@@ -29,6 +29,7 @@ func NewRootCmd() *cobra.Command {
 		startElectionCmd(),
 		startApiCmd(),
 		selectValidatorsCmd(),
+		showValidatorsCmd(),
 		versionCmd(),
 		keyCmd(),
 	)

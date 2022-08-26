@@ -19,6 +19,7 @@ func selectValidatorsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "select-vals",
 		Aliases: []string{"v"},
+		Args:    cobra.ExactArgs(0),
 		Short:   "Select high quality validators for you",
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -128,6 +129,64 @@ func selectValidatorsCmd() *cobra.Command {
 	cmd.Flags().Int64(flagNumber, 5, "Validators number limit")
 	cmd.Flags().String(flagPrefix, "cosmos", "Account prefix (comos|stafi|iaa)")
 	cmd.Flags().Int64(flagMaxMissedBlocks, 100, "max missed blocks")
+
+	return cmd
+}
+
+func showValidatorsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "show-val [val-address]",
+		Aliases: []string{"v"},
+		Args:    cobra.ExactArgs(1),
+		Short:   "Show validator info",
+		RunE: func(cmd *cobra.Command, args []string) error {
+
+			node, err := cmd.Flags().GetString(flagNode)
+			if err != nil {
+				return err
+			}
+			fmt.Println("node rpc: ", node)
+			prefix, err := cmd.Flags().GetString(flagPrefix)
+			if err != nil {
+				return err
+			}
+			fmt.Println("prefix: ", prefix)
+
+			valAddr := args[0]
+
+			c, err := client.NewClient(nil, "", "", prefix, []string{node})
+			if err != nil {
+				return err
+			}
+
+			curBLockHeight, err := c.GetCurrentBlockHeight()
+			if err != nil {
+				return err
+			}
+			fmt.Println("currentBlockHeight: ", curBLockHeight)
+
+			fmt.Println("wait to get allValidator...")
+			allValidator, err := utils.GetValidatorAnnualRate(c, curBLockHeight)
+			if err != nil {
+				return err
+			}
+			fmt.Println("wait to get averageAnnualRate...")
+			averageAnnualRate, err := utils.GetAverageAnnualRate(c, curBLockHeight, allValidator)
+			if err != nil {
+				return err
+			}
+
+			val := allValidator[valAddr]
+			fmt.Println("total validators: ", len(allValidator))
+			fmt.Println("average annual rate: ", averageAnnualRate.String())
+			fmt.Printf("valAddress: %s annualRate: %s commission: %s tokenAmount: %s\n", val.OperatorAddress, val.AnnualRate, val.Commission, val.TokenAmount)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().String(flagNode, "http://localhost:26657", "Node rpc endpoint")
+	cmd.Flags().String(flagPrefix, "cosmos", "Account prefix (comos|stafi|iaa)")
 
 	return cmd
 }
