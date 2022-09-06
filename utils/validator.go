@@ -62,6 +62,10 @@ func GetSelectedValidator(c *cosmosClient.Client, height, number int64, valMap m
 	}
 	// rm 5% + 33%
 	remainStart := initialLen / 20
+	if c.GetAccountPrefix() == "iaa" {
+		remainStart = 21
+	}
+
 	remainEnd := initialLen - initialLen/3
 	if remainStart >= remainEnd || remainEnd-remainStart < int(number) {
 		sort.Slice(valSlice, func(i, j int) bool {
