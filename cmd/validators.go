@@ -5,6 +5,7 @@ import (
 
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	client "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
@@ -23,10 +24,20 @@ func selectValidatorsCmd() *cobra.Command {
 		Short:   "Select high quality validators for you",
 		RunE: func(cmd *cobra.Command, args []string) error {
 
+			logLevelStr, err := cmd.Flags().GetString(flagLogLevel)
+			if err != nil {
+				return err
+			}
+			logLevel, err := logrus.ParseLevel(logLevelStr)
+			if err != nil {
+				return err
+			}
+			logrus.SetLevel(logLevel)
 			node, err := cmd.Flags().GetString(flagNode)
 			if err != nil {
 				return err
 			}
+
 			fmt.Println("node rpc: ", node)
 			prefix, err := cmd.Flags().GetString(flagPrefix)
 			if err != nil {
@@ -129,6 +140,7 @@ func selectValidatorsCmd() *cobra.Command {
 	cmd.Flags().Int64(flagNumber, 5, "Validators number limit")
 	cmd.Flags().String(flagPrefix, "cosmos", "Account prefix (comos|stafi|iaa)")
 	cmd.Flags().Int64(flagMaxMissedBlocks, 100, "max missed blocks")
+	cmd.Flags().String(flagLogLevel, logrus.InfoLevel.String(), "The logging level (trace|debug|info|warn|error|fatal|panic)")
 
 	return cmd
 }

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/sirupsen/logrus"
 	cosmosClient "github.com/stafihub/cosmos-relay-sdk/client"
 )
 
@@ -62,8 +63,11 @@ func GetSelectedValidator(c *cosmosClient.Client, height, number int64, valMap m
 	}
 	// rm 5% + 33%
 	remainStart := initialLen / 20
-	if c.GetAccountPrefix() == "iaa" {
+	switch c.GetAccountPrefix() {
+	case "iaa":
 		remainStart = 21
+	case "chihuahua":
+		remainStart = 11
 	}
 
 	remainEnd := initialLen - initialLen/3
@@ -93,6 +97,11 @@ func GetValidatorAnnualRate(c *cosmosClient.Client, height int64) (map[string]*V
 			return nil, err
 		}
 		rates = append(rates, valRates)
+
+		logrus.WithFields(logrus.Fields{
+			"valRates": valRates,
+			"height":   height,
+		}).Debug("annualRateOnHeight")
 	}
 
 	retValRates := make(map[string]*Validator)
@@ -136,6 +145,9 @@ func GetValidatorAnnualRateOnHeight(c *cosmosClient.Client, height int64) (map[s
 	if err != nil {
 		return nil, err
 	}
+	if len(res.Validators) == 0 {
+		return nil, fmt.Errorf("validators empty on height: %d", height)
+	}
 
 	vals := make(map[string]*Validator, 0)
 	for _, val := range res.Validators {
@@ -151,13 +163,13 @@ func GetValidatorAnnualRateOnHeight(c *cosmosClient.Client, height int64) (map[s
 
 			commission := rewardTokenAmount.Mul(val.GetCommission())
 			sharedToken := rewardTokenAmount.Sub(commission)
-
 			rewardPerShare := sharedToken.Quo(willUseVal.ShareAmount)
 			if averageBlockTime.IsZero() {
 				averageBlockTime, err = GetAverageBlockTime(c, height)
 				if err != nil {
 					return nil, err
 				}
+				logrus.Debug("average block time", averageBlockTime)
 			}
 			annualRate := rewardPerShare.Mul(sdk.NewDec(365 * 24 * 60 * 60)).Quo(averageBlockTime)
 
